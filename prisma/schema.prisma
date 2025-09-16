@@ -1,0 +1,194 @@
+// Arquivo de schema Prisma
+// Documentação: https://pris.ly/d/prisma-schema
+// Caso precise de desempenho extra (edge/serverless) veja Prisma Accelerate: https://pris.ly/cli/accelerate-init
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// Modelos iniciais da aplicação de agenda de medicações
+// ============================================================
+// Notas de modelagem:
+// 1. pricePaid: Decimal (enviar como string ao criar via Prisma Client para evitar perda de precisão)
+// 2. Agora suporte a múltiplos horários por medicação via model MedicationSchedule
+// 3. IntakeEvent: histórico de tomadas (remoção > 90 dias será feita via job na aplicação, não aqui)
+// 4. attempts: conta disparos de alarme (1 inicial + reenvios a cada 15 min até limite definido na lógica)
+// 5. photoUrl: URL para a imagem (armazenar externamente; evitar blobs grandes no banco)
+// 6. daysOfWeekBitmask em MedicationSchedule: máscara de bits (1=Dom,2=Seg,4=Ter,8=Qua,16=Qui,32=Sex,64=Sáb). 0 => todos os dias
+// 7. passwordHash: sempre armazenar hash forte (bcrypt / argon2). Nunca guardar senha em texto puro
+// 8. Campo timezone em User (padrão America/Sao_Paulo) para calcular horários locais
+// 9. Índices adicionados para consultas frequentes (usuário, horário, status, ativo)
+// 10. Limpeza / agendamento de lembretes e reenvios de alarme serão implementados em serviços / cron jobs externos
+
+// Status da tomada do lembrete
+enum IntakeStatus {
+  PENDING // Aguardando ação do usuário ou janela de confirmação
+  TAKEN // Confirmado como tomado
+  MISSED // Considerado perdido (janela expirou)
+}
+
+// Plataforma/dispositivo para push/alarme
+enum Platform {
+  ANDROID
+  IOS
+}
+
+// Usuário da aplicação
+model User {
+  id                  String               @id @default(cuid())
+  name                String?              @db.VarChar(100)
+  email               String               @unique @db.VarChar(191)
+  passwordHash        String               @db.VarChar(255)
+  timezone            String               @default("America/Sao_Paulo") @db.VarChar(60)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  lastLoginAt         DateTime?
+  reminders           MedicationReminder[]
+  intakeEvents        IntakeEvent[]
+  emergencyContacts   EmergencyContact[]
+  devices             Device[]
+  passwordResetTokens PasswordResetToken[]
+  refreshTokens       RefreshToken[]
+}
+
+// Lembrete de medicação (metadados gerais). Horários ficam em MedicationSchedule.
+model MedicationReminder {
+  id           String               @id @default(cuid())
+  userId       String
+  name         String               @db.VarChar(120)
+  purpose      String?              @db.VarChar(255) // Para que serve / indicação
+  description  String?              @db.Text // Instruções adicionais / posologia textual
+  pricePaid    Decimal?             @db.Decimal(10, 2)
+  photoUrl     String?              @db.VarChar(500)
+  isActive     Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  // Relações
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  intakeEvents IntakeEvent[]
+  schedules    MedicationSchedule[]
+
+  @@index([userId])
+  @@index([isActive])
+}
+
+// Horários específicos de uma medicação (permite múltiplos horários por dia)
+model MedicationSchedule {
+  id                   String   @id @default(cuid())
+  medicationReminderId String
+  ingestionTimeMinutes Int // 0..1439 (ex: 08:30 => 8*60+30 = 510)
+  daysOfWeekBitmask    Int      @default(0) // 0 => todos os dias; senão máscara
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  medicationReminder MedicationReminder @relation(fields: [medicationReminderId], references: [id], onDelete: Cascade)
+  intakeEvents       IntakeEvent[]
+
+  @@index([medicationReminderId])
+  @@index([ingestionTimeMinutes])
+  @@index([isActive])
+}
+
+// Evento concreto de tomada (instância diária do lembrete)
+model IntakeEvent {
+  id                   String       @id @default(cuid())
+  userId               String
+  medicationReminderId String
+  medicationScheduleId String? // Qual horário específico (opcional para compatibilidade)
+  scheduledAt          DateTime // Horário alvo do primeiro disparo (UTC ou convertido)
+  status               IntakeStatus @default(PENDING)
+  takenAt              DateTime? // Horário real confirmado
+  attempts             Int          @default(0) // Número de alarmes emitidos
+  notes                String?      @db.VarChar(255)
+  createdAt            DateTime     @default(now())
+
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  medicationReminder MedicationReminder  @relation(fields: [medicationReminderId], references: [id], onDelete: Cascade)
+  medicationSchedule MedicationSchedule? @relation(fields: [medicationScheduleId], references: [id], onDelete: SetNull)
+
+  // Evitar duplicações por usuário + schedule + horário
+  @@unique([userId, medicationScheduleId, scheduledAt])
+  @@index([userId])
+  @@index([medicationReminderId])
+  @@index([medicationScheduleId])
+  // Consultas quentes: status + faixa/ordenação por scheduledAt (alarme)
+  @@index([status, scheduledAt])
+  // Consultas por usuário em faixa de tempo (lista/intake)
+  @@index([userId, scheduledAt])
+}
+
+// Contato de emergência (para envio de S.O.S.)
+model EmergencyContact {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String   @db.VarChar(120)
+  phone     String   @db.VarChar(25)
+  priority  Int      @default(0) // Ordem de exibição / envio (0..4)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, phone])
+  @@index([userId])
+  @@index([isActive])
+  // Contagem/listagem por usuário+ativo com ordenação por prioridade
+  @@index([userId, isActive, priority])
+}
+
+// Dispositivo cadastrado para push / alarmes
+model Device {
+  id         String    @id @default(cuid())
+  userId     String
+  platform   Platform
+  pushToken  String    @unique @db.VarChar(400)
+  isActive   Boolean   @default(true)
+  lastSeenAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([platform])
+  @@index([isActive])
+  // Busca frequente por dispositivos ativos do usuário
+  @@index([userId, isActive])
+}
+
+// Token de recuperação de senha
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  token     String    @unique @db.VarChar(191)
+  expiresAt DateTime // Após este momento torna-se inválido
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// Token de refresh para sessão prolongada (rotacionado em cada uso)
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique @db.VarChar(191) // SHA-256 do token raw
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
