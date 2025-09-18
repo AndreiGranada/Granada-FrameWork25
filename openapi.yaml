@@ -1,8 +1,19 @@
 openapi: 3.1.0
 info:
   title: MedicalTime API
-  version: 1.0.0
-  description: API para lembretes de medicação, eventos de tomada, dispositivos, S.O.S. e autenticação.
+  version: 1.2.0
+  description: |
+    API para lembretes de medicação, eventos de tomada, dispositivos, S.O.S. e autenticação.
+    \nMudanças 1.2.0:
+    - Paginação experimental em /intakes/history via parâmetros `limit` e `cursor` (cursor baseado em scheduledAt ISO desc).
+    - Novo schema `IntakeHistoryPage` com `data` e `pageInfo { hasMore, nextCursor }`.
+    - Resposta 200 de /intakes/history agora documentada como `oneOf` (modo legado array OU página paginada) mantendo retrocompatibilidade.
+    - Acrescentados parâmetros de query `limit` e `cursor` ao endpoint.
+    \nMudanças 1.1.0:
+    - Adicionados schemas AuthSession, Reminder/Schedule formalizados para respostas.
+    - Endpoints de criação/atualização de lembretes e schedules agora retornam objeto completo.
+    - Documentação expandida de daysOfWeekBitmask com exemplos.
+    - Preparação (comentada) para envelope futuro { data, error } sem quebra retrocompatível.
 servers:
   - url: http://localhost:3000
 components:
@@ -12,6 +23,23 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    # FUTURO: considerar envelope padronizado { data: <T>, error?: ErrorResponse } antes de introduzir paginação ampla.
+    AuthSession:
+      type: object
+      description: Sessão de autenticação retornada em login/register/refresh.
+      properties:
+        user: { $ref: "#/components/schemas/UserPublic" }
+        token:
+          type: string
+          description: JWT de acesso (curta duração)
+        refreshToken:
+          type: string
+          description: Token opaco de refresh (rotacionado em cada uso)
+        refreshExpiresAt:
+          type: string
+          format: date-time
+          description: Data de expiração absoluta do refresh token corrente
+      required: [user, token, refreshToken, refreshExpiresAt]
     UserPublic:
       type: object
       properties:
@@ -67,7 +95,7 @@ components:
             type: integer,
             minimum: 0,
             maximum: 127,
-            description: "1=Dom,2=Seg,4=Ter,8=Qua,16=Qui,32=Sex,64=Sáb; 0=todos",
+            description: "Bitmask de dias. 1=Dom,2=Seg,4=Ter,8=Qua,16=Qui,32=Sex,64=Sáb. 0=todos. Exemplos: Diário=0; Dias úteis=62; Fim de semana=65; Seg/Qua/Sex=42; Ter/Qui=20",
           }
         isActive: { type: boolean }
       required: [id, ingestionTimeMinutes, daysOfWeekBitmask, isActive]
@@ -76,7 +104,11 @@ components:
       required: [ingestionTimeMinutes]
       properties:
         ingestionTimeMinutes: { type: integer, minimum: 0, maximum: 1439 }
-        daysOfWeekBitmask: { type: integer, minimum: 0, maximum: 127 }
+        daysOfWeekBitmask:
+          type: integer
+          minimum: 0
+          maximum: 127
+          description: "Ver descrição em Schedule (0=todos)."
         isActive: { type: boolean }
     ScheduleUpdate:
       type: object
@@ -122,6 +154,24 @@ components:
           required: [id, ingestionTimeMinutes]
       required:
         [id, medicationReminderId, scheduledAt, status, attempts, reminder]
+    IntakeHistoryPage:
+      type: object
+      description: Página de histórico de intakes (modo paginado experimental). Retornada somente quando `limit` é fornecido.
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/IntakeEventExpanded" }
+        pageInfo:
+          type: object
+          properties:
+            hasMore: { type: boolean }
+            nextCursor:
+              type: string
+              format: date-time
+              nullable: true
+              description: Cursor para próxima página (usar como `cursor` na próxima chamada). Null/ausente se não houver mais páginas.
+          required: [hasMore, nextCursor]
+      required: [data, pageInfo]
     Device:
       type: object
       properties:
@@ -299,12 +349,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  user: { $ref: "#/components/schemas/UserPublic" }
-                  token: { type: string }
-                  refreshToken: { type: string }
-                  refreshExpiresAt: { type: string, format: date-time }
+                $ref: "#/components/schemas/AuthSession"
         "400": { $ref: "#/components/responses/BadRequestError" }
         "409": { $ref: "#/components/responses/ConflictError" }
         "429": { $ref: "#/components/responses/RateLimitError" }
@@ -336,12 +381,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  user: { $ref: "#/components/schemas/UserPublic" }
-                  token: { type: string }
-                  refreshToken: { type: string }
-                  refreshExpiresAt: { type: string, format: date-time }
+                $ref: "#/components/schemas/AuthSession"
               examples:
                 sucesso:
                   summary: Login bem sucedido
@@ -354,10 +394,10 @@ paths:
                     token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                     refreshToken: "c0f6c8c2-4d1b-4c8c-9a7e-abcdef123456"
                     refreshExpiresAt: "2025-09-16T19:20:30.000Z"
-  "400": { $ref: "#/components/responses/BadRequestError" }
-  "401": { $ref: "#/components/responses/UnauthorizedError" }
-  "429": { $ref: "#/components/responses/RateLimitError" }
-  "500": { $ref: "#/components/responses/InternalServerError" }
+        "400": { $ref: "#/components/responses/BadRequestError" }
+        "401": { $ref: "#/components/responses/UnauthorizedError" }
+        "429": { $ref: "#/components/responses/RateLimitError" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
 
   /auth/forgot:
     post:
@@ -416,12 +456,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  token: { type: string }
-                  refreshToken: { type: string }
-                  refreshExpiresAt: { type: string, format: date-time }
-                  user: { $ref: "#/components/schemas/UserPublic" }
+                $ref: "#/components/schemas/AuthSession"
         "400": { $ref: "#/components/responses/BadRequestError" }
         "401": { $ref: "#/components/responses/UnauthorizedError" }
         "500": { $ref: "#/components/responses/InternalServerError" }
@@ -529,7 +564,11 @@ paths:
                     - ingestionTimeMinutes: 480
                       daysOfWeekBitmask: 0
       responses:
-        "201": { description: Criado }
+        "201":
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Reminder" }
         "400": { $ref: "#/components/responses/BadRequestError" }
         "500": { $ref: "#/components/responses/InternalServerError" }
 
@@ -543,7 +582,11 @@ paths:
           required: true
           schema: { type: string }
       responses:
-        "200": { description: Ok }
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Reminder" }
         "400": { $ref: "#/components/responses/BadRequestError" }
         "404": { $ref: "#/components/responses/NotFoundError" }
         "500": { $ref: "#/components/responses/InternalServerError" }
@@ -561,7 +604,11 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/ReminderUpdate" }
       responses:
-        "200": { description: Ok }
+        "200":
+          description: Atualizado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Reminder" }
         "400": { $ref: "#/components/responses/BadRequestError" }
         "404": { $ref: "#/components/responses/NotFoundError" }
         "500": { $ref: "#/components/responses/InternalServerError" }
@@ -601,7 +648,11 @@ paths:
                   ingestionTimeMinutes: 510
                   daysOfWeekBitmask: 2 + 8
       responses:
-        "201": { description: Criado }
+        "201":
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Reminder" }
         "400": { $ref: "#/components/responses/BadRequestError" }
         "404": { $ref: "#/components/responses/NotFoundError" }
         "500": { $ref: "#/components/responses/InternalServerError" }
@@ -621,7 +672,11 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/ScheduleUpdate" }
       responses:
-        "200": { description: Ok }
+        "200":
+          description: Atualizado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Reminder" }
         "400": { $ref: "#/components/responses/BadRequestError" }
         "404": { $ref: "#/components/responses/NotFoundError" }
         "500": { $ref: "#/components/responses/InternalServerError" }
@@ -705,14 +760,71 @@ paths:
         - in: query
           name: days
           schema: { type: string }
+          description: "Modo legado: quantidade de dias passados a retornar (array simples). Não combinar com limit."
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200 }
+          description: Ativa modo paginado (experimental). Número máximo de eventos retornados. Não combinar com `days`.
+        - in: query
+          name: cursor
+          schema: { type: string, format: date-time }
+          description: Cursor (ISO date-time) retornado em `pageInfo.nextCursor` da página anterior.
       responses:
         "200":
-          description: Lista de eventos
+          description: Histórico de eventos (array simples legado OU página paginada experimental)
           content:
             application/json:
               schema:
-                type: array
-                items: { $ref: "#/components/schemas/IntakeEventExpanded" }
+                oneOf:
+                  - description: Modo legado (quando usado `days` e não fornecido `limit`).
+                    type: array
+                    items: { $ref: "#/components/schemas/IntakeEventExpanded" }
+                  - $ref: "#/components/schemas/IntakeHistoryPage"
+              examples:
+                legado_array:
+                  summary: Modo legado (últimos 7 dias)
+                  value:
+                    - id: intk_10
+                      medicationReminderId: rem_1
+                      medicationScheduleId: sch_1
+                      scheduledAt: 2025-09-10T08:30:00.000Z
+                      status: TAKEN
+                      attempts: 0
+                      takenAt: 2025-09-10T08:35:00.000Z
+                      reminder:
+                        id: rem_1
+                        name: Vitamina D
+                        photoUrl: null
+                      schedule:
+                        id: sch_1
+                        ingestionTimeMinutes: 510
+                paginado_primeira_pagina:
+                  summary: Página 1 (limit=20)
+                  value:
+                    data:
+                      - id: intk_200
+                        medicationReminderId: rem_5
+                        medicationScheduleId: sch_42
+                        scheduledAt: 2025-09-16T20:15:00.000Z
+                        status: PENDING
+                        attempts: 0
+                        reminder:
+                          id: rem_5
+                          name: Ômega 3
+                          photoUrl: null
+                        schedule:
+                          id: sch_42
+                          ingestionTimeMinutes: 600
+                    pageInfo:
+                      hasMore: true
+                      nextCursor: 2025-09-16T19:59:59.000Z
+                paginado_ultima_pagina:
+                  summary: Última página (sem mais resultados)
+                  value:
+                    data: []
+                    pageInfo:
+                      hasMore: false
+                      nextCursor: null
         "400": { $ref: "#/components/responses/BadRequestError" }
         "500": { $ref: "#/components/responses/InternalServerError" }
 
@@ -728,6 +840,7 @@ paths:
       responses:
         "200": { description: Ok }
         "400": { $ref: "#/components/responses/BadRequestError" }
+        "409": { $ref: "#/components/responses/ConflictError" }
         "404": { $ref: "#/components/responses/NotFoundError" }
         "500": { $ref: "#/components/responses/InternalServerError" }
 

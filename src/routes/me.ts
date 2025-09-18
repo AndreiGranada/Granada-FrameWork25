@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { errorHelpers, mapZodError } from '../lib/errors';
 import { z } from 'zod';
 import bcrypt from 'bcrypt';
 
@@ -10,19 +11,13 @@ const router = Router();
 // GET /me - retorna dados públicos do usuário autenticado
 router.get('/', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        if (!req.userId) {
-            res.status(401).json({ error: 'Não autenticado' });
-            return;
-        }
+        if (!req.userId) return errorHelpers.unauthorized(res);
         const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { id: true, email: true, name: true, timezone: true } });
-        if (!user) {
-            res.status(404).json({ error: 'Usuário não encontrado' });
-            return;
-        }
+        if (!user) return errorHelpers.notFound(res, 'Usuário não encontrado');
         res.json({ user });
     } catch (e) {
         console.error(e);
-        res.status(500).json({ error: 'Erro interno' });
+        errorHelpers.internal(res);
     }
 });
 
@@ -44,21 +39,12 @@ const updateSchema = z.object({
 
 router.patch('/', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        if (!req.userId) {
-            res.status(401).json({ error: 'Não autenticado' });
-            return;
-        }
+        if (!req.userId) return errorHelpers.unauthorized(res);
         const parsed = updateSchema.safeParse(req.body);
-        if (!parsed.success) {
-            res.status(400).json({ error: 'Parâmetros inválidos', issues: parsed.error.flatten() });
-            return;
-        }
+        if (!parsed.success) return errorHelpers.badRequest(res, 'Falha de validação', mapZodError(parsed.error));
         const { name, timezone, passwordCurrent, passwordNew } = parsed.data;
         const user = await prisma.user.findUnique({ where: { id: req.userId } });
-        if (!user) {
-            res.status(404).json({ error: 'Usuário não encontrado' });
-            return;
-        }
+        if (!user) return errorHelpers.notFound(res, 'Usuário não encontrado');
 
         const data: any = {};
         if (name !== undefined) data.name = name;
@@ -66,10 +52,7 @@ router.patch('/', authMiddleware, async (req: AuthRequest, res: Response): Promi
 
         if (passwordCurrent || passwordNew) {
             const ok = await bcrypt.compare(passwordCurrent || '', user.passwordHash);
-            if (!ok) {
-                res.status(409).json({ error: 'Senha atual incorreta' });
-                return;
-            }
+            if (!ok) return errorHelpers.conflict(res, 'Senha atual incorreta');
             const hash = await bcrypt.hash(passwordNew!, 10);
             data.passwordHash = hash;
         }
@@ -82,6 +65,6 @@ router.patch('/', authMiddleware, async (req: AuthRequest, res: Response): Promi
         res.json({ user: updated });
     } catch (e) {
         console.error(e);
-        res.status(500).json({ error: 'Erro interno' });
+        errorHelpers.internal(res);
     }
 });

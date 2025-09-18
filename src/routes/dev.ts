@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 import { prisma } from '../lib/prisma';
 import { getNotificationProvider } from '../services/notifications';
+import { errorHelpers, mapZodError } from '../lib/errors';
 
 const router = Router();
 router.use(authMiddleware);
@@ -25,17 +26,16 @@ router.post('/test-sos', async (req: AuthRequest, res: Response): Promise<void> 
             orderBy: [{ priority: 'asc' }],
             take: 5
         });
-        if (!contacts.length) { res.status(400).json({ error: 'Nenhum contato ativo cadastrado' }); return; }
+        if (!contacts.length) return errorHelpers.badRequest(res, 'Nenhum contato ativo cadastrado');
         const text = message || 'S.O.S. (teste)';
         const notify = getNotificationProvider();
         const payload = contacts.map(c => ({ to: c.phone, name: c.name, text }));
         const result = await notify.sendSosBulk(payload);
         res.json({ sent: result.sent, contacts });
     } catch (err: any) {
-        if (err instanceof z.ZodError) { res.status(400).json({ error: 'Dados inválidos', issues: err.flatten() }); return; }
-        // eslint-disable-next-line no-console
+        if (err instanceof z.ZodError) return errorHelpers.badRequest(res, 'Falha de validação', mapZodError(err));
         console.error(err);
-        res.status(500).json({ error: 'Erro interno' });
+        errorHelpers.internal(res);
     }
 });
 
@@ -49,7 +49,7 @@ router.post('/test-alarm', async (req: AuthRequest, res: Response): Promise<void
                 where: { userId: req.userId!, status: 'PENDING' },
                 orderBy: { scheduledAt: 'asc' }
             });
-            if (!pending) { res.status(400).json({ error: 'Nenhum IntakeEvent PENDING encontrado para o usuário. Informe intakeEventId.' }); return; }
+            if (!pending) return errorHelpers.badRequest(res, 'Nenhum IntakeEvent PENDING encontrado para o usuário. Informe intakeEventId.');
             targetId = pending.id;
         }
 
@@ -57,10 +57,9 @@ router.post('/test-alarm', async (req: AuthRequest, res: Response): Promise<void
         await notify.sendAlarm(req.userId!, targetId);
         res.json({ ok: true, intakeEventId: targetId });
     } catch (err: any) {
-        if (err instanceof z.ZodError) { res.status(400).json({ error: 'Dados inválidos', issues: err.flatten() }); return; }
-        // eslint-disable-next-line no-console
+        if (err instanceof z.ZodError) return errorHelpers.badRequest(res, 'Falha de validação', mapZodError(err));
         console.error(err);
-        res.status(500).json({ error: 'Erro interno' });
+        errorHelpers.internal(res);
     }
 });
 

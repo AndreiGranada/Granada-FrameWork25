@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { errorHelpers, mapZodError } from '../lib/errors';
 import { sosLimiter } from '../middleware/rateLimit';
 import { getNotificationProvider } from '../services/notifications';
 
@@ -41,17 +42,17 @@ router.post('/emergency-contacts', async (req: AuthRequest, res: Response): Prom
     try {
         const data = createContactSchema.parse(req.body);
         if (data.isActive) {
-            try { await ensureActiveLimit(req.userId!); } catch { res.status(400).json({ error: 'Limite de 5 contatos ativos atingido' }); return; }
+            try { await ensureActiveLimit(req.userId!); } catch { return errorHelpers.badRequest(res, 'Limite de 5 contatos ativos atingido'); }
         }
         const created = await prisma.emergencyContact.create({
             data: { userId: req.userId!, name: data.name, phone: data.phone, priority: data.priority, isActive: data.isActive }
         });
         res.status(201).json(created);
     } catch (err: any) {
-        if (err instanceof z.ZodError) { res.status(400).json({ error: 'Dados inválidos', issues: err.flatten() }); return; }
-        if (err.code === 'P2002') { res.status(409).json({ error: 'Telefone já cadastrado' }); return; }
+        if (err instanceof z.ZodError) return errorHelpers.badRequest(res, 'Falha de validação', mapZodError(err));
+        if (err.code === 'P2002') return errorHelpers.conflict(res, 'Telefone já cadastrado');
         console.error(err);
-        res.status(500).json({ error: 'Erro interno' });
+        errorHelpers.internal(res);
     }
 });
 
@@ -61,7 +62,7 @@ router.get('/emergency-contacts', async (req: AuthRequest, res: Response): Promi
         const contacts = await prisma.emergencyContact.findMany({ where: { userId: req.userId }, orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }] });
         res.json(contacts);
     } catch (err) {
-        console.error(err); res.status(500).json({ error: 'Erro interno' });
+        console.error(err); errorHelpers.internal(res);
     }
 });
 
@@ -70,10 +71,10 @@ router.patch('/emergency-contacts/:id', async (req: AuthRequest, res: Response):
     try {
         const data = updateContactSchema.parse(req.body);
         const contact = await prisma.emergencyContact.findFirst({ where: { id: req.params.id, userId: req.userId } });
-        if (!contact) { res.status(404).json({ error: 'Não encontrado' }); return; }
+        if (!contact) return errorHelpers.notFound(res, 'Contato não encontrado');
 
         if (data.isActive === true && !contact.isActive) {
-            try { await ensureActiveLimit(req.userId!); } catch { res.status(400).json({ error: 'Limite de 5 contatos ativos atingido' }); return; }
+            try { await ensureActiveLimit(req.userId!); } catch { return errorHelpers.badRequest(res, 'Limite de 5 contatos ativos atingido'); }
         }
 
         const updated = await prisma.emergencyContact.update({
@@ -87,9 +88,9 @@ router.patch('/emergency-contacts/:id', async (req: AuthRequest, res: Response):
         });
         res.json(updated);
     } catch (err: any) {
-        if (err instanceof z.ZodError) { res.status(400).json({ error: 'Dados inválidos', issues: err.flatten() }); return; }
-        if (err.code === 'P2002') { res.status(409).json({ error: 'Telefone já cadastrado' }); return; }
-        console.error(err); res.status(500).json({ error: 'Erro interno' });
+        if (err instanceof z.ZodError) return errorHelpers.badRequest(res, 'Falha de validação', mapZodError(err));
+        if (err.code === 'P2002') return errorHelpers.conflict(res, 'Telefone já cadastrado');
+        console.error(err); errorHelpers.internal(res);
     }
 });
 
@@ -97,10 +98,10 @@ router.patch('/emergency-contacts/:id', async (req: AuthRequest, res: Response):
 router.delete('/emergency-contacts/:id', async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const contact = await prisma.emergencyContact.findFirst({ where: { id: req.params.id, userId: req.userId } });
-        if (!contact) { res.status(404).json({ error: 'Não encontrado' }); return; }
+        if (!contact) return errorHelpers.notFound(res, 'Contato não encontrado');
         await prisma.emergencyContact.delete({ where: { id: contact.id } });
         res.status(204).send();
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Erro interno' }); }
+    } catch (err) { console.error(err); errorHelpers.internal(res); }
 });
 
 // SOS endpoint
@@ -108,7 +109,7 @@ router.post('/sos', sosLimiter, async (req: AuthRequest, res: Response): Promise
     try {
         const { message } = sosSchema.parse(req.body);
         const contacts = await prisma.emergencyContact.findMany({ where: { userId: req.userId, isActive: true }, orderBy: [{ priority: 'asc' }], take: 5 });
-        if (!contacts.length) { res.status(400).json({ error: 'Nenhum contato ativo cadastrado' }); return; }
+        if (!contacts.length) return errorHelpers.badRequest(res, 'Nenhum contato ativo cadastrado');
 
         const base = message || 'S.O.S. Necessito de ajuda agora.';
         const notify = getNotificationProvider();
@@ -116,8 +117,8 @@ router.post('/sos', sosLimiter, async (req: AuthRequest, res: Response): Promise
         const result = await notify.sendSosBulk(payload);
         res.json({ sent: result.sent, contacts });
     } catch (err: any) {
-        if (err instanceof z.ZodError) { res.status(400).json({ error: 'Dados inválidos', issues: err.flatten() }); return; }
-        console.error(err); res.status(500).json({ error: 'Erro interno' });
+        if (err instanceof z.ZodError) return errorHelpers.badRequest(res, 'Falha de validação', mapZodError(err));
+        console.error(err); errorHelpers.internal(res);
     }
 });
 

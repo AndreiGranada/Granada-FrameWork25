@@ -1,5 +1,45 @@
 # Changelog
 
+## [1.2.0] - 2025-09-17
+
+### Added
+
+- Paginação experimental em `/intakes/history` via parâmetros `limit` (>=1) e `cursor` (ISO date-time) retornando envelope `{ data, pageInfo }`.
+- Schema `IntakeHistoryPage` no OpenAPI e resposta documentada com `oneOf` (modo legado array OU página paginada) mantendo retrocompatibilidade.
+
+### Changed
+
+- Versão do OpenAPI `1.1.0` -> `1.2.0` para refletir adição de paginação experimental.
+
+### Notes
+
+- Modo paginado só é acionado quando `limit` é fornecido. O modo legado com `days` permanece intacto (sem breaking change).
+- Cursor utiliza `scheduledAt` em ordem decrescente; clientes devem tratar `hasMore=false` ou `nextCursor=null` como fim.
+
+## [1.1.0] - 2025-09-17
+
+### Added
+
+- Schema `AuthSession` no OpenAPI reutilizado em /auth/register, /auth/login e /auth/refresh.
+- Schemas formais `Reminder`, `Schedule`, `ScheduleCreate/Update` agora referenciados nas respostas dos endpoints.
+- Retornos enriquecidos de criação/atualização de Reminder e Schedule passam a devolver o Reminder completo (com `schedules`).
+- Documentação expandida para `daysOfWeekBitmask` (exemplos: diário=0, úteis=62, fds=65, seg/qua/sex=42, ter/qui=20).
+
+### Changed
+
+- Version bump OpenAPI de 1.0.0 para 1.1.0 incluindo novas definições.
+- Normalização de respostas de auth para aderir ao schema `AuthSession` (ordem e nomenclatura de campos consistentes).
+
+### Fixed
+
+- Correção de formatação YAML na descrição de bitmask (uso de string simples ao invés de bloco inválido).
+
+### Notes
+
+- Próximos passos planejados (não implementados ainda): envelope `{ data, error }` e paginação em histórico de intakes.
+
+## [1.0.0] - 2025-09-16
+
 Todas as mudanças notáveis deste projeto serão documentadas aqui. Formato inspirado em [Keep a Changelog](https://keepachangelog.com/) e versionamento SemVer.
 
 ## [1.0.0] - 2025-09-16

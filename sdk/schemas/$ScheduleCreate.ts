@@ -11,6 +11,7 @@ export const $ScheduleCreate = {
         },
         daysOfWeekBitmask: {
             type: 'number',
+            description: `Ver descrição em Schedule (0=todos).`,
             maximum: 127,
         },
         isActive: {

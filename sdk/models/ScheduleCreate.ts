@@ -4,6 +4,9 @@
 /* eslint-disable */
 export type ScheduleCreate = {
     ingestionTimeMinutes: number;
+    /**
+     * Ver descrição em Schedule (0=todos).
+     */
     daysOfWeekBitmask?: number;
     isActive?: boolean;
 };

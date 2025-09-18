@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { errorHelpers, mapZodError } from '../lib/errors';
 import { addHours } from 'date-fns';
 
 const router = Router();
@@ -65,20 +66,60 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
         }));
         res.json(events);
     } catch (err: any) {
-        if (err instanceof z.ZodError) {
-            res.status(400).json({ error: 'Parâmetros inválidos', issues: err.flatten() });
-            return;
-        }
+        if (err instanceof z.ZodError) return errorHelpers.badRequest(res, 'Parâmetros inválidos', mapZodError(err));
         console.error(err);
-        res.status(500).json({ error: 'Erro interno' });
+        errorHelpers.internal(res);
     }
 });
 
-// GET /intakes/history?days=7 => histórico passado (limite 90)
-const historySchema = z.object({ days: z.string().regex(/^\d+$/).optional() });
+// GET /intakes/history
+// Modos:
+//  - Legacy: ?days=7 (retorna array simples)
+//  - Paginado (novo): ?limit=50&cursor=<scheduledAt_iso> (retorna envelope { data, pageInfo }) ordenado desc por scheduledAt
+const historySchema = z.object({
+    days: z.string().regex(/^[\d]+$/).optional(),
+    limit: z.string().regex(/^[\d]+$/).optional(),
+    cursor: z.string().datetime().optional()
+});
 router.get('/history', async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const { days } = historySchema.parse(req.query);
+        const { days, limit, cursor } = historySchema.parse(req.query);
+
+        // Se limit for enviado => modo paginado
+        if (limit) {
+            const take = Math.min(Number(limit), 200) + 1; // pegar 1 extra para saber se há next
+            const where: any = { userId: req.userId };
+            if (cursor) {
+                // scheduledAt < cursor (ordenado desc)
+                where.scheduledAt = { lt: new Date(cursor) };
+            }
+            const eventsRaw = await prisma.intakeEvent.findMany({
+                where,
+                orderBy: { scheduledAt: 'desc' },
+                take,
+                include: {
+                    medicationReminder: { select: { id: true, name: true, photoUrl: true } },
+                    medicationSchedule: { select: { id: true, ingestionTimeMinutes: true } }
+                }
+            });
+            const hasMore = eventsRaw.length === take;
+            const slice = hasMore ? eventsRaw.slice(0, -1) : eventsRaw;
+            const mapped = slice.map(e => ({
+                id: e.id,
+                medicationReminderId: e.medicationReminderId,
+                medicationScheduleId: e.medicationScheduleId,
+                scheduledAt: e.scheduledAt,
+                status: e.status,
+                attempts: e.attempts,
+                takenAt: e.takenAt,
+                reminder: e.medicationReminder ? { id: e.medicationReminder.id, name: e.medicationReminder.name, photoUrl: e.medicationReminder.photoUrl } : undefined,
+                schedule: e.medicationSchedule ? { id: e.medicationSchedule.id, ingestionTimeMinutes: e.medicationSchedule.ingestionTimeMinutes } : null
+            }));
+            res.json({ data: mapped, pageInfo: { hasMore, nextCursor: hasMore ? mapped[mapped.length - 1].scheduledAt : null } });
+            return;
+        }
+
+        // Legacy array simples baseado em days
         const d = Math.min(days ? Number(days) : 7, 90);
         const to = new Date();
         const from = new Date(to.getTime() - d * 24 * 60 * 60 * 1000);
@@ -99,24 +140,14 @@ router.get('/history', async (req: AuthRequest, res: Response): Promise<void> =>
             status: e.status,
             attempts: e.attempts,
             takenAt: e.takenAt,
-            reminder: e.medicationReminder ? {
-                id: e.medicationReminder.id,
-                name: e.medicationReminder.name,
-                photoUrl: e.medicationReminder.photoUrl
-            } : undefined,
-            schedule: e.medicationSchedule ? {
-                id: e.medicationSchedule.id,
-                ingestionTimeMinutes: e.medicationSchedule.ingestionTimeMinutes
-            } : null
+            reminder: e.medicationReminder ? { id: e.medicationReminder.id, name: e.medicationReminder.name, photoUrl: e.medicationReminder.photoUrl } : undefined,
+            schedule: e.medicationSchedule ? { id: e.medicationSchedule.id, ingestionTimeMinutes: e.medicationSchedule.ingestionTimeMinutes } : null
         }));
         res.json(events);
     } catch (err: any) {
-        if (err instanceof z.ZodError) {
-            res.status(400).json({ error: 'Parâmetros inválidos', issues: err.flatten() });
-            return;
-        }
+        if (err instanceof z.ZodError) return errorHelpers.badRequest(res, 'Parâmetros inválidos', mapZodError(err));
         console.error(err);
-        res.status(500).json({ error: 'Erro interno' });
+        errorHelpers.internal(res);
     }
 });
 
@@ -126,18 +157,9 @@ router.post('/:id/taken', async (req: AuthRequest, res: Response): Promise<void>
         const event = await prisma.intakeEvent.findFirst({
             where: { id: req.params.id, userId: req.userId }
         });
-        if (!event) {
-            res.status(404).json({ error: 'Não encontrado' });
-            return;
-        }
-        if (event.status === 'TAKEN') {
-            res.status(409).json({ error: 'Já marcado como tomado' });
-            return;
-        }
-        if (event.status === 'MISSED') {
-            res.status(409).json({ error: 'Evento perdido, não pode ser tomado' });
-            return;
-        }
+        if (!event) return errorHelpers.notFound(res, 'Evento não encontrado');
+        if (event.status === 'TAKEN') return errorHelpers.conflict(res, 'Já marcado como tomado');
+        if (event.status === 'MISSED') return errorHelpers.conflict(res, 'Evento perdido, não pode ser tomado');
 
         const updated = await prisma.intakeEvent.update({
             where: { id: event.id },
@@ -146,7 +168,7 @@ router.post('/:id/taken', async (req: AuthRequest, res: Response): Promise<void>
         res.json(updated);
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: 'Erro interno' });
+        errorHelpers.internal(res);
     }
 });
 

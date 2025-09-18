@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { AuthSession } from '../models/AuthSession';
 import type { Device } from '../models/Device';
 import type { DeviceCreate } from '../models/DeviceCreate';
 import type { DeviceUpdate } from '../models/DeviceUpdate';
@@ -9,6 +10,7 @@ import type { EmergencyContact } from '../models/EmergencyContact';
 import type { EmergencyContactCreate } from '../models/EmergencyContactCreate';
 import type { EmergencyContactUpdate } from '../models/EmergencyContactUpdate';
 import type { IntakeEventExpanded } from '../models/IntakeEventExpanded';
+import type { IntakeHistoryPage } from '../models/IntakeHistoryPage';
 import type { Reminder } from '../models/Reminder';
 import type { ReminderCreate } from '../models/ReminderCreate';
 import type { ReminderUpdate } from '../models/ReminderUpdate';
@@ -32,7 +34,7 @@ export class DefaultService {
     }
     /**
      * Registrar usuário
-     * @returns any Registrado
+     * @returns AuthSession Registrado
      * @throws ApiError
      */
     public static authRegister({
@@ -43,12 +45,7 @@ export class DefaultService {
             password: string;
             name?: string;
         },
-    }): CancelablePromise<{
-        user?: UserPublic;
-        token?: string;
-        refreshToken?: string;
-        refreshExpiresAt?: string;
-    }> {
+    }): CancelablePromise<AuthSession> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/auth/register',
@@ -64,7 +61,7 @@ export class DefaultService {
     }
     /**
      * Login
-     * @returns any Autenticado
+     * @returns AuthSession Autenticado
      * @throws ApiError
      */
     public static authLogin({
@@ -74,17 +71,18 @@ export class DefaultService {
             email: string;
             password: string;
         },
-    }): CancelablePromise<{
-        user?: UserPublic;
-        token?: string;
-        refreshToken?: string;
-        refreshExpiresAt?: string;
-    }> {
+    }): CancelablePromise<AuthSession> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/auth/login',
             body: requestBody,
             mediaType: 'application/json',
+            errors: {
+                400: `Requisição inválida`,
+                401: `Não autenticado`,
+                429: `Rate limit`,
+                500: `Erro interno`,
+            },
         });
     }
     /**
@@ -137,7 +135,7 @@ export class DefaultService {
     }
     /**
      * Renovar token de acesso
-     * @returns any Novo token emitido
+     * @returns AuthSession Novo token emitido
      * @throws ApiError
      */
     public static authRefreshToken({
@@ -146,12 +144,7 @@ export class DefaultService {
         requestBody: {
             refreshToken: string;
         },
-    }): CancelablePromise<{
-        token?: string;
-        refreshToken?: string;
-        refreshExpiresAt?: string;
-        user?: UserPublic;
-    }> {
+    }): CancelablePromise<AuthSession> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/auth/refresh',
@@ -244,14 +237,14 @@ export class DefaultService {
     }
     /**
      * Criar lembrete
-     * @returns any Criado
+     * @returns Reminder Criado
      * @throws ApiError
      */
     public static createReminder({
         requestBody,
     }: {
         requestBody: ReminderCreate,
-    }): CancelablePromise<any> {
+    }): CancelablePromise<Reminder> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/reminders',
@@ -265,14 +258,14 @@ export class DefaultService {
     }
     /**
      * Obter lembrete
-     * @returns any Ok
+     * @returns Reminder Ok
      * @throws ApiError
      */
     public static getReminder({
         id,
     }: {
         id: string,
-    }): CancelablePromise<any> {
+    }): CancelablePromise<Reminder> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/reminders/{id}',
@@ -288,7 +281,7 @@ export class DefaultService {
     }
     /**
      * Atualizar lembrete
-     * @returns any Ok
+     * @returns Reminder Atualizado
      * @throws ApiError
      */
     public static updateReminder({
@@ -297,7 +290,7 @@ export class DefaultService {
     }: {
         id: string,
         requestBody: ReminderUpdate,
-    }): CancelablePromise<any> {
+    }): CancelablePromise<Reminder> {
         return __request(OpenAPI, {
             method: 'PATCH',
             url: '/reminders/{id}',
@@ -339,7 +332,7 @@ export class DefaultService {
     }
     /**
      * Adicionar schedule a um lembrete
-     * @returns any Criado
+     * @returns Reminder Criado
      * @throws ApiError
      */
     public static addReminderSchedule({
@@ -348,7 +341,7 @@ export class DefaultService {
     }: {
         id: string,
         requestBody: ScheduleCreate,
-    }): CancelablePromise<any> {
+    }): CancelablePromise<Reminder> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/reminders/{id}/schedules',
@@ -366,7 +359,7 @@ export class DefaultService {
     }
     /**
      * Atualizar schedule
-     * @returns any Ok
+     * @returns Reminder Atualizado
      * @throws ApiError
      */
     public static updateSchedule({
@@ -375,7 +368,7 @@ export class DefaultService {
     }: {
         scheduleId: string,
         requestBody: ScheduleUpdate,
-    }): CancelablePromise<any> {
+    }): CancelablePromise<Reminder> {
         return __request(OpenAPI, {
             method: 'PATCH',
             url: '/reminders/schedules/{scheduleId}',
@@ -447,19 +440,34 @@ export class DefaultService {
     }
     /**
      * Histórico de eventos recentes
-     * @returns IntakeEventExpanded Lista de eventos
+     * @returns any Histórico de eventos (array simples legado OU página paginada experimental)
      * @throws ApiError
      */
     public static listIntakeHistory({
         days,
+        limit,
+        cursor,
     }: {
+        /**
+         * Modo legado: quantidade de dias passados a retornar (array simples). Não combinar com limit.
+         */
         days?: string,
-    }): CancelablePromise<Array<IntakeEventExpanded>> {
+        /**
+         * Ativa modo paginado (experimental). Número máximo de eventos retornados. Não combinar com `days`.
+         */
+        limit?: number,
+        /**
+         * Cursor (ISO date-time) retornado em `pageInfo.nextCursor` da página anterior.
+         */
+        cursor?: string,
+    }): CancelablePromise<(Array<IntakeEventExpanded> | IntakeHistoryPage)> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/intakes/history',
             query: {
                 'days': days,
+                'limit': limit,
+                'cursor': cursor,
             },
             errors: {
                 400: `Requisição inválida`,
@@ -486,6 +494,7 @@ export class DefaultService {
             errors: {
                 400: `Requisição inválida`,
                 404: `Não encontrado`,
+                409: `Conflito`,
                 500: `Erro interno`,
             },
         });
