@@ -3,3 +3,24 @@ node_modules
 .env
 
 /generated/prisma
+
+# Build outputs
+dist/
+coverage/
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+*.log
+
+# Frontend artifacts not used in backend
+App.tsx
+app.json
+app-env.d.ts
+babel.config.js
+metro.config.js
+nativewind-env.d.ts
+tailwind.config.js
+global.css
+frontend-examples/
