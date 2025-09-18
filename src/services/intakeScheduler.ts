@@ -1,12 +1,8 @@
 import { prisma } from '../lib/prisma';
 import { startOfMinute, addMinutes, addDays } from 'date-fns';
 import { logger } from '../lib/logger';
-
-// Substituindo import nomeado por require para contornar tipos faltantes
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const tzLib: any = require('date-fns-tz');
-const toZonedTime = tzLib.toZonedTime || tzLib.utcToZonedTime;
-const zonedTimeToUtc = tzLib.zonedTimeToUtc;
+import { getCorrelationId } from '../lib/als';
+import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 
 // Gera eventos para próximas 24h.
 // Estratégia simples: para cada schedule ativo gerar 1 ocorrência por dia futuro que ainda não exista.
@@ -56,7 +52,7 @@ export async function generateUpcomingIntakeEvents(): Promise<{ created: number 
             // Se horário já passou e d==0, pular
             if (d === 0 && localCandidate < localNow) continue;
 
-            const scheduledAtUtc = zonedTimeToUtc(localCandidate, tz);
+            const scheduledAtUtc = fromZonedTime(localCandidate, tz);
             if (scheduledAtUtc > horizon) continue;
 
             // Verificar se já existe evento para esse schedule + horário (aprox mesma hora)
@@ -69,15 +65,20 @@ export async function generateUpcomingIntakeEvents(): Promise<{ created: number 
             });
             if (existing) continue;
 
-            await prisma.intakeEvent.create({
-                data: {
-                    userId,
-                    medicationReminderId: schedule.medicationReminderId,
-                    medicationScheduleId: schedule.id,
-                    scheduledAt: scheduledAtUtc
-                }
-            });
-            created++;
+            try {
+                await prisma.intakeEvent.create({
+                    data: {
+                        userId,
+                        medicationReminderId: schedule.medicationReminderId,
+                        medicationScheduleId: schedule.id,
+                        scheduledAt: scheduledAtUtc
+                    }
+                });
+                created++;
+            } catch (e: any) {
+                // Em caso de corrida, a restrição única pode falhar; ignorar duplicata
+                if (e?.code !== 'P2002') throw e;
+            }
         }
     }
 
@@ -92,7 +93,7 @@ export function startIntakeScheduler(intervalMs = 5 * 60 * 1000) { // a cada 5 m
         try {
             const { created } = await generateUpcomingIntakeEvents();
             if (created > 0) {
-                logger.info({ created }, '[intakeScheduler] eventos novos');
+                logger.info({ created, correlationId: getCorrelationId() }, '[intakeScheduler] eventos novos');
             }
         } catch (e) {
             console.error('[intakeScheduler] Erro:', e);

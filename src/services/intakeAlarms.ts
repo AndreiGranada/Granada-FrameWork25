@@ -1,16 +1,18 @@
 import { prisma } from '../lib/prisma';
 import { differenceInMinutes } from 'date-fns';
 import { logger } from '../lib/logger';
+import { getCorrelationId } from '../lib/als';
+import { getNotificationProvider } from './notifications';
 
-// Configurações (podem ir para env futuramente)
-const RETRY_INTERVAL_MIN = 15;          // intervalo entre alarmes
-const MAX_ATTEMPTS = 3;                 // total de disparos (1 inicial + 2 retries)
-const MARK_MISSED_AFTER_MIN = 45;       // após 45 min do horário se ainda PENDING -> MISSED
-const SCAN_WINDOW_HOURS = 6;            // não processar eventos muito antigos
+// Configurações (parametrizáveis via env)
+const RETRY_INTERVAL_MIN = Number(process.env.ALARM_RETRY_INTERVAL_MIN ?? 15);
+const MAX_ATTEMPTS = Number(process.env.ALARM_MAX_ATTEMPTS ?? 3);
+const MARK_MISSED_AFTER_MIN = Number(process.env.ALARM_MARK_MISSED_AFTER_MIN ?? 45);
+const SCAN_WINDOW_HOURS = Number(process.env.ALARM_SCAN_WINDOW_HOURS ?? 6);
 
-async function dispatchAlarm(eventId: string) {
-    // Placeholder: aqui integrar push notification / local notification / fila
-    logger.info(`[alarmDispatcher] Disparando alarme para intakeEvent ${eventId}`);
+async function dispatchAlarm(eventId: string, userId: string) {
+    const notify = getNotificationProvider();
+    await notify.sendAlarm(userId, eventId);
 }
 
 export async function processPendingAlarms(): Promise<{ sent: number; missed: number }> {
@@ -22,6 +24,7 @@ export async function processPendingAlarms(): Promise<{ sent: number; missed: nu
             status: 'PENDING',
             scheduledAt: { gte: windowStart, lte: now }
         },
+        select: { id: true, scheduledAt: true, attempts: true, userId: true },
         take: 500,
         orderBy: { scheduledAt: 'asc' }
     });
@@ -49,13 +52,11 @@ export async function processPendingAlarms(): Promise<{ sent: number; missed: nu
         const nextThreshold = ev.attempts * RETRY_INTERVAL_MIN; // attempts 0 => 0; 1=>15;2=>30
         if (ev.attempts < MAX_ATTEMPTS && minutesSince >= nextThreshold) {
             try {
-                await prisma.$transaction([
-                    prisma.intakeEvent.update({
-                        where: { id: ev.id },
-                        data: { attempts: { increment: 1 } }
-                    })
-                ]);
-                await dispatchAlarm(ev.id);
+                await prisma.intakeEvent.update({
+                    where: { id: ev.id },
+                    data: { attempts: { increment: 1 } }
+                });
+                await dispatchAlarm(ev.id, ev.userId);
                 sent++;
             } catch (e) {
                 // possivelmente outro processo já tratou
@@ -74,7 +75,7 @@ export function startAlarmProcessor(intervalMs = 60 * 1000) { // a cada 1 min
         try {
             const { sent, missed } = await processPendingAlarms();
             if (sent || missed) {
-                logger.info(`[alarmProcessor] sent=${sent} missed=${missed}`);
+                logger.info({ sent, missed, correlationId: getCorrelationId() }, '[alarmProcessor] resumo');
             }
         } catch (e) {
             console.error('[alarmProcessor] erro', e);

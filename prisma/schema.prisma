@@ -112,11 +112,15 @@ model IntakeEvent {
   medicationReminder MedicationReminder  @relation(fields: [medicationReminderId], references: [id], onDelete: Cascade)
   medicationSchedule MedicationSchedule? @relation(fields: [medicationScheduleId], references: [id], onDelete: SetNull)
 
+  // Evitar duplicações por usuário + schedule + horário
+  @@unique([userId, medicationScheduleId, scheduledAt])
   @@index([userId])
   @@index([medicationReminderId])
   @@index([medicationScheduleId])
-  @@index([scheduledAt])
-  @@index([status])
+  // Consultas quentes: status + faixa/ordenação por scheduledAt (alarme)
+  @@index([status, scheduledAt])
+  // Consultas por usuário em faixa de tempo (lista/intake)
+  @@index([userId, scheduledAt])
 }
 
 // Contato de emergência (para envio de S.O.S.)
@@ -135,6 +139,8 @@ model EmergencyContact {
   @@unique([userId, phone])
   @@index([userId])
   @@index([isActive])
+  // Contagem/listagem por usuário+ativo com ordenação por prioridade
+  @@index([userId, isActive, priority])
 }
 
 // Dispositivo cadastrado para push / alarmes
@@ -153,6 +159,8 @@ model Device {
   @@index([userId])
   @@index([platform])
   @@index([isActive])
+  // Busca frequente por dispositivos ativos do usuário
+  @@index([userId, isActive])
 }
 
 // Token de recuperação de senha
