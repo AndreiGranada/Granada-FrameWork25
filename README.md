@@ -116,9 +116,11 @@ Observações:
 - `npm run dev` — inicia o servidor em modo desenvolvimento (ts-node-dev)
 - `npm run build` — gera saída JavaScript em `dist/`
 - `npm start` — roda a versão compilada
-- `npm run prisma:generate` — gera Prisma Client
-- `npm run prisma:migrate` — cria/aplica migrações
+- `npm run generate` — gera Prisma Client
+- `npm run migrate` — aplica migrações em desenvolvimento
+- `npm run migrate:deploy` — aplica migrações em produção/CI
 - `npm test` — executa testes (Jest)
+- `npm run smoke` — executa um smoke test end-to-end local (requer servidor e DB ativos)
 
 ## Banco de Dados (Prisma)
 
@@ -144,6 +146,38 @@ npm run dev
 ```
 
 A API subirá em `http://localhost:%PORT%` (default 3000).
+
+### Smoke manual
+
+Pré-requisitos:
+
+- Banco MySQL acessível conforme `DATABASE_URL` do `.env` (ex.: `mysql://root:senha@localhost:3306/medicaltime`)
+- Servidor em execução (ex.: `npm run dev`)
+
+Execução:
+
+```powershell
+# Em um terminal, mantenha o servidor ativo
+npm run dev
+
+# Em outro terminal, rode o smoke
+npm run smoke
+```
+
+O script fará:
+
+- Registro de usuário (gera e usa JWT)
+- Criação de lembrete (com um schedule)
+- Listagem de intakes próximas 24h e tentativa de marcar TAKEN (se existir)
+- Registro e listagem de device
+- Criação e listagem de contato de emergência
+- Disparo de SOS (dev provider por padrão)
+
+Observações:
+
+- O script aguarda `GET /health` responder antes de iniciar (timeout ~15s).
+- Em ambiente de desenvolvimento, `NOTIFY_PROVIDER=dev` e `NOTIFY_DRY_RUN=true` evitam envios reais.
+- Caso use Docker para o banco, garanta que o container esteja saudável antes de rodar o smoke.
 
 ## Endpoints Essenciais
 

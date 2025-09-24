@@ -63,8 +63,9 @@ CREATE TABLE `IntakeEvent` (
     INDEX `IntakeEvent_userId_idx`(`userId`),
     INDEX `IntakeEvent_medicationReminderId_idx`(`medicationReminderId`),
     INDEX `IntakeEvent_medicationScheduleId_idx`(`medicationScheduleId`),
-    INDEX `IntakeEvent_scheduledAt_idx`(`scheduledAt`),
-    INDEX `IntakeEvent_status_idx`(`status`),
+    INDEX `IntakeEvent_status_scheduledAt_idx`(`status`, `scheduledAt`),
+    INDEX `IntakeEvent_userId_scheduledAt_idx`(`userId`, `scheduledAt`),
+    UNIQUE INDEX `IntakeEvent_userId_medicationScheduleId_scheduledAt_key`(`userId`, `medicationScheduleId`, `scheduledAt`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -81,6 +82,7 @@ CREATE TABLE `EmergencyContact` (
 
     INDEX `EmergencyContact_userId_idx`(`userId`),
     INDEX `EmergencyContact_isActive_idx`(`isActive`),
+    INDEX `EmergencyContact_userId_isActive_priority_idx`(`userId`, `isActive`, `priority`),
     UNIQUE INDEX `EmergencyContact_userId_phone_key`(`userId`, `phone`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -100,6 +102,7 @@ CREATE TABLE `Device` (
     INDEX `Device_userId_idx`(`userId`),
     INDEX `Device_platform_idx`(`platform`),
     INDEX `Device_isActive_idx`(`isActive`),
+    INDEX `Device_userId_isActive_idx`(`userId`, `isActive`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -115,6 +118,21 @@ CREATE TABLE `PasswordResetToken` (
     UNIQUE INDEX `PasswordResetToken_token_key`(`token`),
     INDEX `PasswordResetToken_userId_idx`(`userId`),
     INDEX `PasswordResetToken_expiresAt_idx`(`expiresAt`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `RefreshToken` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `tokenHash` VARCHAR(191) NOT NULL,
+    `expiresAt` DATETIME(3) NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `revokedAt` DATETIME(3) NULL,
+
+    UNIQUE INDEX `RefreshToken_tokenHash_key`(`tokenHash`),
+    INDEX `RefreshToken_userId_idx`(`userId`),
+    INDEX `RefreshToken_expiresAt_idx`(`expiresAt`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -141,3 +159,6 @@ ALTER TABLE `Device` ADD CONSTRAINT `Device_userId_fkey` FOREIGN KEY (`userId`) 
 
 -- AddForeignKey
 ALTER TABLE `PasswordResetToken` ADD CONSTRAINT `PasswordResetToken_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `RefreshToken` ADD CONSTRAINT `RefreshToken_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

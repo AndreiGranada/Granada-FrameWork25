@@ -45,7 +45,8 @@ router.post('/emergency-contacts', async (req: AuthRequest, res: Response): Prom
             try { await ensureActiveLimit(req.userId!); } catch { return errorHelpers.badRequest(res, 'Limite de 5 contatos ativos atingido'); }
         }
         const created = await prisma.emergencyContact.create({
-            data: { userId: req.userId!, name: data.name, phone: data.phone, priority: data.priority, isActive: data.isActive }
+            data: { userId: req.userId!, name: data.name, phone: data.phone, priority: data.priority, isActive: data.isActive },
+            select: { id: true, name: true, phone: true, priority: true, isActive: true }
         });
         res.status(201).json(created);
     } catch (err: any) {
@@ -59,7 +60,11 @@ router.post('/emergency-contacts', async (req: AuthRequest, res: Response): Prom
 // List contacts
 router.get('/emergency-contacts', async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const contacts = await prisma.emergencyContact.findMany({ where: { userId: req.userId }, orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }] });
+        const contacts = await prisma.emergencyContact.findMany({
+            where: { userId: req.userId },
+            orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
+            select: { id: true, name: true, phone: true, priority: true, isActive: true }
+        });
         res.json(contacts);
     } catch (err) {
         console.error(err); errorHelpers.internal(res);
@@ -84,7 +89,8 @@ router.patch('/emergency-contacts/:id', async (req: AuthRequest, res: Response):
                 phone: data.phone ?? contact.phone,
                 priority: data.priority ?? contact.priority,
                 isActive: data.isActive ?? contact.isActive
-            }
+            },
+            select: { id: true, name: true, phone: true, priority: true, isActive: true }
         });
         res.json(updated);
     } catch (err: any) {
@@ -108,7 +114,13 @@ router.delete('/emergency-contacts/:id', async (req: AuthRequest, res: Response)
 router.post('/sos', sosLimiter, async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const { message } = sosSchema.parse(req.body);
-        const contacts = await prisma.emergencyContact.findMany({ where: { userId: req.userId, isActive: true }, orderBy: [{ priority: 'asc' }], take: 5 });
+        const contacts = await prisma.emergencyContact.findMany({
+            where: { userId: req.userId, isActive: true },
+            orderBy: [{ priority: 'asc' }],
+            take: 5,
+            // Retornar apenas os campos documentados/publicados
+            select: { id: true, name: true, phone: true, priority: true, isActive: true }
+        });
         if (!contacts.length) return errorHelpers.badRequest(res, 'Nenhum contato ativo cadastrado');
 
         const base = message || 'S.O.S. Necessito de ajuda agora.';

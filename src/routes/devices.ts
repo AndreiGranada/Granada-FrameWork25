@@ -29,7 +29,8 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
             if (existing.userId !== req.userId) return errorHelpers.conflict(res, 'Token de push já associado a outro usuário');
             const updated = await prisma.device.update({
                 where: { id: existing.id },
-                data: { platform: data.platform as Platform, isActive: true, lastSeenAt: new Date() }
+                data: { platform: data.platform as Platform, isActive: true, lastSeenAt: new Date() },
+                select: { id: true, platform: true, pushToken: true, isActive: true }
             });
             res.json(updated);
             return;
@@ -42,7 +43,8 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
                 pushToken: data.pushToken,
                 isActive: true,
                 lastSeenAt: new Date()
-            }
+            },
+            select: { id: true, platform: true, pushToken: true, isActive: true }
         });
         res.status(201).json(created);
     } catch (err: any) {
@@ -55,7 +57,11 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
 // Listar dispositivos do usuário
 router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const list = await prisma.device.findMany({ where: { userId: req.userId }, orderBy: { createdAt: 'desc' } });
+        const list = await prisma.device.findMany({
+            where: { userId: req.userId },
+            orderBy: { createdAt: 'desc' },
+            select: { id: true, platform: true, pushToken: true, isActive: true }
+        });
         res.json(list);
     } catch (err) { console.error(err); errorHelpers.internal(res); }
 });
@@ -79,7 +85,8 @@ router.patch('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
                 pushToken: data.pushToken ?? device.pushToken,
                 isActive: data.isActive ?? device.isActive,
                 lastSeenAt: new Date()
-            }
+            },
+            select: { id: true, platform: true, pushToken: true, isActive: true }
         });
         res.json(updated);
     } catch (err: any) {

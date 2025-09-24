@@ -1,4 +1,6 @@
 import rateLimit from 'express-rate-limit';
+import type { Request, Response, NextFunction } from 'express';
+import { errorHelpers } from '../lib/errors';
 
 function parseDuration(input: string | undefined, defMs: number): number {
     if (!input || input.trim() === '') return defMs;
@@ -26,7 +28,11 @@ export const authLimiter = rateLimit({
     limit: Number.isFinite(authMax) && authMax > 0 ? authMax : 50,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
-    message: { error: 'Muitas requisições de autenticação. Tente novamente mais tarde.' }
+    handler: (_req: Request, res: Response, _next: NextFunction, options) => {
+        const retryAfterSeconds = Math.ceil(options.windowMs / 1000);
+        res.setHeader('Retry-After', String(retryAfterSeconds));
+        return errorHelpers.rateLimit(res, 'Muitas requisições de autenticação. Tente novamente mais tarde.', retryAfterSeconds);
+    }
 });
 
 const sosWindowMs = parseDuration(process.env.RATE_LIMIT_SOS_WINDOW, 10 * 60 * 1000);
@@ -37,5 +43,9 @@ export const sosLimiter = rateLimit({
     limit: Number.isFinite(sosMax) && sosMax > 0 ? sosMax : 10,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
-    message: { error: 'Muitas requisições S.O.S. Tente novamente mais tarde.' }
+    handler: (_req: Request, res: Response, _next: NextFunction, options) => {
+        const retryAfterSeconds = Math.ceil(options.windowMs / 1000);
+        res.setHeader('Retry-After', String(retryAfterSeconds));
+        return errorHelpers.rateLimit(res, 'Muitas requisições S.O.S. Tente novamente mais tarde.', retryAfterSeconds);
+    }
 });

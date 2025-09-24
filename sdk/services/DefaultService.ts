@@ -9,6 +9,7 @@ import type { DeviceUpdate } from '../models/DeviceUpdate';
 import type { EmergencyContact } from '../models/EmergencyContact';
 import type { EmergencyContactCreate } from '../models/EmergencyContactCreate';
 import type { EmergencyContactUpdate } from '../models/EmergencyContactUpdate';
+import type { IntakeEvent } from '../models/IntakeEvent';
 import type { IntakeEventExpanded } from '../models/IntakeEventExpanded';
 import type { IntakeHistoryPage } from '../models/IntakeHistoryPage';
 import type { Reminder } from '../models/Reminder';
@@ -477,14 +478,14 @@ export class DefaultService {
     }
     /**
      * Marcar evento como tomado
-     * @returns any Ok
+     * @returns IntakeEvent Evento atualizado
      * @throws ApiError
      */
     public static markIntakeTaken({
         id,
     }: {
         id: string,
-    }): CancelablePromise<any> {
+    }): CancelablePromise<IntakeEvent> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/intakes/{id}/taken',
@@ -515,14 +516,14 @@ export class DefaultService {
     }
     /**
      * Criar contato de emergência
-     * @returns any Criado
+     * @returns EmergencyContact Criado
      * @throws ApiError
      */
     public static createEmergencyContact({
         requestBody,
     }: {
         requestBody: EmergencyContactCreate,
-    }): CancelablePromise<any> {
+    }): CancelablePromise<EmergencyContact> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/emergency/emergency-contacts',
@@ -536,7 +537,7 @@ export class DefaultService {
     }
     /**
      * Atualizar contato de emergência
-     * @returns any Ok
+     * @returns EmergencyContact Ok
      * @throws ApiError
      */
     public static updateEmergencyContact({
@@ -545,7 +546,7 @@ export class DefaultService {
     }: {
         id: string,
         requestBody: EmergencyContactUpdate,
-    }): CancelablePromise<any> {
+    }): CancelablePromise<EmergencyContact> {
         return __request(OpenAPI, {
             method: 'PATCH',
             url: '/emergency/emergency-contacts/{id}',
@@ -600,14 +601,14 @@ export class DefaultService {
     }
     /**
      * Registrar dispositivo
-     * @returns any Criado
+     * @returns Device Criado
      * @throws ApiError
      */
     public static registerDevice({
         requestBody,
     }: {
         requestBody: DeviceCreate,
-    }): CancelablePromise<any> {
+    }): CancelablePromise<Device> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/devices',
@@ -621,7 +622,7 @@ export class DefaultService {
     }
     /**
      * Atualizar dispositivo
-     * @returns any Ok
+     * @returns Device Ok
      * @throws ApiError
      */
     public static updateDevice({
@@ -630,7 +631,7 @@ export class DefaultService {
     }: {
         id: string,
         requestBody: DeviceUpdate,
-    }): CancelablePromise<any> {
+    }): CancelablePromise<Device> {
         return __request(OpenAPI, {
             method: 'PATCH',
             url: '/devices/{id}',

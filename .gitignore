@@ -1,3 +1,51 @@
+# Dependencies
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build output
+/dist/
+/build/
+/cache/
+/tmp/
+/temp/
+
+# TypeScript
+*.tsbuildinfo
+
+# Testing
+/coverage/
+/.jest/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Editor & IDE
+.vscode/
+.history/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Prisma (local sqlite, if any)
+prisma/dev.db
+prisma/dev.db-journal
+
+# Docker data (if any)
+docker-data/
+
+# Others
+.tmp/
 node_modules
 # Keep environment variables out of version control
 .env

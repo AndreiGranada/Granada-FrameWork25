@@ -163,7 +163,16 @@ router.post('/:id/taken', async (req: AuthRequest, res: Response): Promise<void>
 
         const updated = await prisma.intakeEvent.update({
             where: { id: event.id },
-            data: { status: 'TAKEN', takenAt: new Date() }
+            data: { status: 'TAKEN', takenAt: new Date() },
+            select: {
+                id: true,
+                medicationReminderId: true,
+                medicationScheduleId: true,
+                scheduledAt: true,
+                status: true,
+                attempts: true,
+                takenAt: true
+            }
         });
         res.json(updated);
     } catch (err) {

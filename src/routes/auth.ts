@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
+import { Prisma } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
@@ -58,6 +59,13 @@ router.post('/register', authLimiter, async (req: Request, res: Response): Promi
         });
     } catch (err: any) {
         if (err instanceof z.ZodError) return errorHelpers.badRequest(res, 'Falha de validação', mapZodError(err));
+        // Mapeia violação de unicidade de e-mail para 409 (CONFLICT)
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+            const target = (err.meta as any)?.target as string[] | undefined;
+            if (!target || target.includes('email')) {
+                return errorHelpers.conflict(res, 'E-mail já cadastrado');
+            }
+        }
         console.error(err);
         errorHelpers.internal(res);
     }

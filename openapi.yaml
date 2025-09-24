@@ -325,6 +325,7 @@ paths:
     get:
       operationId: getHealth
       summary: Healthcheck
+      security: []
       responses:
         "200": { description: OK }
 
@@ -332,6 +333,7 @@ paths:
     post:
       operationId: authRegister
       summary: Registrar usuário
+      security: []
       requestBody:
         required: true
         content:
@@ -359,6 +361,7 @@ paths:
     post:
       operationId: authLogin
       summary: Login
+      security: []
       requestBody:
         required: true
         content:
@@ -403,6 +406,7 @@ paths:
     post:
       operationId: authForgotPassword
       summary: Solicitar reset de senha
+      security: []
       requestBody:
         required: true
         content:
@@ -422,6 +426,7 @@ paths:
     post:
       operationId: authResetPassword
       summary: Redefinir senha
+      security: []
       requestBody:
         required: true
         content:
@@ -441,6 +446,7 @@ paths:
     post:
       operationId: authRefreshToken
       summary: Renovar token de acesso
+      security: []
       requestBody:
         required: true
         content:
@@ -838,7 +844,11 @@ paths:
           required: true
           schema: { type: string }
       responses:
-        "200": { description: Ok }
+        "200":
+          description: Evento atualizado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IntakeEvent" }
         "400": { $ref: "#/components/responses/BadRequestError" }
         "409": { $ref: "#/components/responses/ConflictError" }
         "404": { $ref: "#/components/responses/NotFoundError" }
@@ -866,7 +876,11 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/EmergencyContactCreate" }
       responses:
-        "201": { description: Criado }
+        "201":
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EmergencyContact" }
         "400": { $ref: "#/components/responses/BadRequestError" }
         "500": { $ref: "#/components/responses/InternalServerError" }
 
@@ -885,7 +899,11 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/EmergencyContactUpdate" }
       responses:
-        "200": { description: Ok }
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EmergencyContact" }
         "400": { $ref: "#/components/responses/BadRequestError" }
         "404": { $ref: "#/components/responses/NotFoundError" }
         "500": { $ref: "#/components/responses/InternalServerError" }
@@ -917,7 +935,29 @@ paths:
               -H "Authorization: Bearer <TOKEN>" \
               http://localhost:3000/emergency/sos
       responses:
-        "200": { description: Ok }
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sent: { type: integer }
+                  contacts:
+                    type: array
+                    items: { $ref: "#/components/schemas/EmergencyContact" }
+                required: [sent, contacts]
+              examples:
+                exemplo:
+                  summary: Disparo com um contato
+                  value:
+                    sent: 1
+                    contacts:
+                      - id: ec_123
+                        name: "Contato"
+                        phone: "+5511999999999"
+                        priority: 0
+                        isActive: true
         "429": { $ref: "#/components/responses/RateLimitError" }
         "500": { $ref: "#/components/responses/InternalServerError" }
 
@@ -949,7 +989,11 @@ paths:
                   platform: ANDROID
                   pushToken: ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]
       responses:
-        "201": { description: Criado }
+        "201":
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Device" }
         "400": { $ref: "#/components/responses/BadRequestError" }
         "500": { $ref: "#/components/responses/InternalServerError" }
 
@@ -968,7 +1012,11 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/DeviceUpdate" }
       responses:
-        "200": { description: Ok }
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Device" }
         "400": { $ref: "#/components/responses/BadRequestError" }
         "404": { $ref: "#/components/responses/NotFoundError" }
         "500": { $ref: "#/components/responses/InternalServerError" }
@@ -994,7 +1042,9 @@ paths:
         - lang: curl
           label: Curl dev
           source: |
-            curl -X POST http://localhost:3000/dev/test-sos
+            curl -X POST \
+              -H "Authorization: Bearer <TOKEN>" \
+              http://localhost:3000/dev/test-sos
       responses:
         "200": { description: Ok }
         "500": { $ref: "#/components/responses/InternalServerError" }
@@ -1007,7 +1057,9 @@ paths:
         - lang: curl
           label: Curl dev alarm
           source: |
-            curl -X POST http://localhost:3000/dev/test-alarm
+            curl -X POST \
+              -H "Authorization: Bearer <TOKEN>" \
+              http://localhost:3000/dev/test-alarm
       responses:
         "200": { description: Ok }
         "500": { $ref: "#/components/responses/InternalServerError" }

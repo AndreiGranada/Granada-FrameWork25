@@ -61,7 +61,23 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
                     }))
                 }
             },
-            include: { schedules: true }
+            select: {
+                id: true,
+                name: true,
+                purpose: true,
+                description: true,
+                pricePaid: true,
+                photoUrl: true,
+                isActive: true,
+                schedules: {
+                    select: {
+                        id: true,
+                        ingestionTimeMinutes: true,
+                        daysOfWeekBitmask: true,
+                        isActive: true
+                    }
+                }
+            }
         });
         res.status(201).json(reminder);
     } catch (err: any) {
@@ -77,7 +93,23 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
         const reminders = await prisma.medicationReminder.findMany({
             where: { userId: req.userId },
             orderBy: { createdAt: 'desc' },
-            include: { schedules: true }
+            select: {
+                id: true,
+                name: true,
+                purpose: true,
+                description: true,
+                pricePaid: true,
+                photoUrl: true,
+                isActive: true,
+                schedules: {
+                    select: {
+                        id: true,
+                        ingestionTimeMinutes: true,
+                        daysOfWeekBitmask: true,
+                        isActive: true
+                    }
+                }
+            }
         });
         res.json(reminders);
     } catch (err) {
@@ -91,7 +123,23 @@ router.get('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const reminder = await prisma.medicationReminder.findFirst({
             where: { id: req.params.id, userId: req.userId },
-            include: { schedules: true }
+            select: {
+                id: true,
+                name: true,
+                purpose: true,
+                description: true,
+                pricePaid: true,
+                photoUrl: true,
+                isActive: true,
+                schedules: {
+                    select: {
+                        id: true,
+                        ingestionTimeMinutes: true,
+                        daysOfWeekBitmask: true,
+                        isActive: true
+                    }
+                }
+            }
         });
         if (!reminder) return errorHelpers.notFound(res, 'Reminder não encontrado');
         res.json(reminder);
@@ -117,7 +165,23 @@ router.patch('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
                 photoUrl: data.photoUrl ?? r.photoUrl,
                 isActive: data.isActive ?? r.isActive
             },
-            include: { schedules: true }
+            select: {
+                id: true,
+                name: true,
+                purpose: true,
+                description: true,
+                pricePaid: true,
+                photoUrl: true,
+                isActive: true,
+                schedules: {
+                    select: {
+                        id: true,
+                        ingestionTimeMinutes: true,
+                        daysOfWeekBitmask: true,
+                        isActive: true
+                    }
+                }
+            }
         });
         res.json(updated);
     } catch (err: any) {
@@ -143,7 +207,23 @@ router.post('/:id/schedules', async (req: AuthRequest, res: Response): Promise<v
         });
         const updatedReminder = await prisma.medicationReminder.findUnique({
             where: { id: r.id },
-            include: { schedules: true }
+            select: {
+                id: true,
+                name: true,
+                purpose: true,
+                description: true,
+                pricePaid: true,
+                photoUrl: true,
+                isActive: true,
+                schedules: {
+                    select: {
+                        id: true,
+                        ingestionTimeMinutes: true,
+                        daysOfWeekBitmask: true,
+                        isActive: true
+                    }
+                }
+            }
         });
         res.status(201).json(updatedReminder);
     } catch (err: any) {
@@ -171,7 +251,23 @@ router.patch('/schedules/:scheduleId', async (req: AuthRequest, res: Response): 
         });
         const reminder = await prisma.medicationReminder.findUnique({
             where: { id: schedule.medicationReminderId },
-            include: { schedules: true }
+            select: {
+                id: true,
+                name: true,
+                purpose: true,
+                description: true,
+                pricePaid: true,
+                photoUrl: true,
+                isActive: true,
+                schedules: {
+                    select: {
+                        id: true,
+                        ingestionTimeMinutes: true,
+                        daysOfWeekBitmask: true,
+                        isActive: true
+                    }
+                }
+            }
         });
         res.json(reminder);
     } catch (err: any) {

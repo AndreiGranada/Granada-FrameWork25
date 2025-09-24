@@ -27,11 +27,29 @@ export const createApp = () => {
 
     // CORS restrito por origem (lista separada por vírgula)
     const origins = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+
+    // Em desenvolvimento, aceitar automaticamente origens comuns do Expo/Web local
+    const isDev = process.env.NODE_ENV !== 'production';
+    const isAllowedDevOrigin = (origin: string): boolean => {
+        if (!isDev) return false;
+        try {
+            const u = new URL(origin);
+            const host = u.hostname;
+            const port = u.port;
+            // localhost / 127.0.0.1 em qualquer porta
+            if ((host === 'localhost' || host === '127.0.0.1') && port) return true;
+            // IPs da LAN 192.168.x.x em qualquer porta (Expo Web pode alternar portas)
+            if (/^192\.168\./.test(host)) return true;
+        } catch { /* ignore parsing errors */ }
+        return false;
+    };
+
     const corsOptions: CorsOptions = origins.length === 0
         ? { origin: true, credentials: true }
         : {
             origin: (origin, callback) => {
-                if (!origin || origins.includes(origin)) return callback(null, true);
+                if (!origin) return callback(null, true); // non-browser clients
+                if (origins.includes(origin) || isAllowedDevOrigin(origin)) return callback(null, true);
                 return callback(new Error('Not allowed by CORS'));
             },
             credentials: true
