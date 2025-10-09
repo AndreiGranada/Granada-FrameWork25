@@ -1,0 +1,56 @@
+# Global
+.DS_Store
+Thumbs.db
+
+# Node / JS
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+dist/
+build/
+coverage/
+.nyc_output/
+.eslintcache
+.cache/
+.tmp/
+
+# TypeScript
+*.tsbuildinfo
+
+# Expo / React Native
+.expo/
+.expo-shared/
+web-build/
+.sourcemaps/
+
+# iOS / Android (se gerar nativo)
+ios/
+android/
+
+# VS Code / Editor
+.vscode/
+.history/
+
+# Env files
+.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Prisma (db locais)
+**/prisma/*.db
+**/prisma/*.db-journal
+
+# Logs
+logs/
+*.log
+lerna-debug.log*
+
+# Docker (dados locais)
+docker-data/
