@@ -28,7 +28,14 @@ describe('Scheduler & Cleanup', () => {
 
         expect(reminder.body.id).toBeTruthy();
 
+        const already = await prisma.intakeEvent.count({ where: { userId } });
+        expect(already).toBeGreaterThan(0);
+
+        await prisma.intakeEvent.deleteMany({ where: { userId } });
+
         const before = await prisma.intakeEvent.count({ where: { userId } });
+        expect(before).toBe(0);
+
         const r1 = await generateUpcomingIntakeEvents();
         const after1 = await prisma.intakeEvent.count({ where: { userId } });
         const r2 = await generateUpcomingIntakeEvents();

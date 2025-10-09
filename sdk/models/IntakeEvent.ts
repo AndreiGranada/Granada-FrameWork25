@@ -10,6 +10,10 @@ export type IntakeEvent = {
     status: IntakeEvent.status;
     attempts: number;
     takenAt?: string | null;
+    /**
+     * Data/hora limite da janela de tolerância (scheduledAt + configuração INTAKE_GRACE_PERIOD_MIN).
+     */
+    graceEndsAt?: string;
 };
 export namespace IntakeEvent {
     export enum status {

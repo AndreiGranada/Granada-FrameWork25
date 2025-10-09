@@ -12,8 +12,13 @@ export const $EmergencyContactCreate = {
             type: 'string',
             isRequired: true,
         },
-        priority: {
-            type: 'number',
+        customMessage: {
+            type: 'string',
+            description: `Mensagem personalizada opcional`,
+        },
+        isActive: {
+            type: 'boolean',
+            description: `Quando omitido assume true`,
         },
     },
 } as const;

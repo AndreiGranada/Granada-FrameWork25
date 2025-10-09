@@ -27,7 +27,13 @@ export class DefaultService {
      * @returns any OK
      * @throws ApiError
      */
-    public static getHealth(): CancelablePromise<any> {
+    public static getHealth(): CancelablePromise<{
+        status?: string;
+        /**
+         * Horário ISO do servidor
+         */
+        time?: string;
+    }> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/health',
@@ -88,7 +94,7 @@ export class DefaultService {
     }
     /**
      * Solicitar reset de senha
-     * @returns any Se existir
+     * @returns any Se existir, enviaremos as instruções
      * @throws ApiError
      */
     public static authForgotPassword({
@@ -97,7 +103,9 @@ export class DefaultService {
         requestBody: {
             email: string;
         },
-    }): CancelablePromise<any> {
+    }): CancelablePromise<{
+        message: string;
+    }> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/auth/forgot',
@@ -122,7 +130,9 @@ export class DefaultService {
             token: string;
             password: string;
         },
-    }): CancelablePromise<any> {
+    }): CancelablePromise<{
+        message: string;
+    }> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/auth/reset',
@@ -163,7 +173,9 @@ export class DefaultService {
      * @returns any Ok
      * @throws ApiError
      */
-    public static authLogout(): CancelablePromise<any> {
+    public static authLogout(): CancelablePromise<{
+        message: string;
+    }> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/auth/logout',
@@ -601,7 +613,7 @@ export class DefaultService {
     }
     /**
      * Registrar dispositivo
-     * @returns Device Criado
+     * @returns Device Dispositivo já existia para o usuário e foi reativado/atualizado
      * @throws ApiError
      */
     public static registerDevice({

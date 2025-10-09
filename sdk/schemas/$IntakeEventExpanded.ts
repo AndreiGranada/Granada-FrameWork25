@@ -35,6 +35,11 @@ export const $IntakeEventExpanded = {
             isNullable: true,
             format: 'date-time',
         },
+        graceEndsAt: {
+            type: 'string',
+            description: `Data/hora limite da janela de tolerância (scheduledAt + configuração INTAKE_GRACE_PERIOD_MIN).`,
+            format: 'date-time',
+        },
         reminder: {
             properties: {
                 id: {

@@ -104,12 +104,12 @@
 
         // Contatos de emergência: cria 5 ativos + 1 inativo
         const contacts = [
-            { name: 'Contato 1', phone: '+551199999001', priority: 0, isActive: true },
-            { name: 'Contato 2', phone: '+551199999002', priority: 1, isActive: true },
-            { name: 'Contato 3', phone: '+551199999003', priority: 2, isActive: true },
-            { name: 'Contato 4', phone: '+551199999004', priority: 3, isActive: true },
-            { name: 'Contato 5', phone: '+551199999005', priority: 4, isActive: true },
-            { name: 'Contato 6', phone: '+551199999006', priority: 5, isActive: false },
+            { name: 'Contato 1', phone: '+551199999001', customMessage: 'Ajude-me por favor (1)', isActive: true },
+            { name: 'Contato 2', phone: '+551199999002', customMessage: 'Ajude-me por favor (2)', isActive: true },
+            { name: 'Contato 3', phone: '+551199999003', customMessage: null, isActive: true },
+            { name: 'Contato 4', phone: '+551199999004', customMessage: null, isActive: true },
+            { name: 'Contato 5', phone: '+551199999005', customMessage: null, isActive: true },
+            { name: 'Contato 6', phone: '+551199999006', customMessage: null, isActive: false },
         ];
         for (const c of contacts) {
             try {

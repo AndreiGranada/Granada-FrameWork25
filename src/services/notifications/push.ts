@@ -45,6 +45,7 @@ export class ExpoProvider implements NotificationProvider {
     private accessToken: string | undefined;
     private dryRun: boolean;
     private logger = baseLogger.child({ svc: 'ExpoProvider' });
+    private readonly maxRetries = 3;
 
     constructor() {
         this.accessToken = process.env.EXPO_ACCESS_TOKEN;
@@ -94,6 +95,24 @@ export class ExpoProvider implements NotificationProvider {
 
         const invalidTokens: string[] = [];
         for (const batch of batches) {
+            const batchInvalid = await this.sendBatchWithRetry(url, batch);
+            if (batchInvalid.length > 0) {
+                invalidTokens.push(...batchInvalid);
+            }
+        }
+
+        if (invalidTokens.length > 0) {
+            await prisma.device.updateMany({
+                where: { userId, pushToken: { in: invalidTokens } },
+                data: { isActive: false }
+            });
+            this.logger.info({ userId, invalidCount: invalidTokens.length, correlationId: getCorrelationId() }, 'Desativados tokens Expo inválidos');
+        }
+    }
+
+    private async sendBatchWithRetry(url: string, batch: any[]): Promise<string[]> {
+        const invalidTokens: string[] = [];
+        for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
             try {
                 const resp = await fetch(url, {
                     method: 'POST',
@@ -107,8 +126,14 @@ export class ExpoProvider implements NotificationProvider {
 
                 if (!resp.ok) {
                     const txt = await resp.text();
-                    this.logger.error({ status: resp.status, txt, correlationId: getCorrelationId() }, 'Falha ao enviar lote Expo');
-                    continue;
+                    const context = { status: resp.status, txt, attempt, correlationId: getCorrelationId() };
+                    const retryable = this.isRetryableStatus(resp.status) && attempt < this.maxRetries;
+                    this.logger.error(context, 'Falha ao enviar lote Expo');
+                    if (retryable) {
+                        await this.delay(attempt);
+                        continue;
+                    }
+                    break;
                 }
 
                 const json: any = await resp.json();
@@ -125,18 +150,40 @@ export class ExpoProvider implements NotificationProvider {
                         }
                     }
                 });
-            } catch (e) {
-                this.logger.error({ err: e, correlationId: getCorrelationId() }, 'Exceção ao enviar lote Expo');
+                break;
+            } catch (err) {
+                const retryable = this.isRetryableError(err) && attempt < this.maxRetries;
+                this.logger.error({ err, attempt, correlationId: getCorrelationId(), retryable }, 'Exceção ao enviar lote Expo');
+                if (retryable) {
+                    await this.delay(attempt);
+                    continue;
+                }
+                break;
             }
         }
+        return invalidTokens;
+    }
 
-        if (invalidTokens.length > 0) {
-            await prisma.device.updateMany({
-                where: { userId, pushToken: { in: invalidTokens } },
-                data: { isActive: false }
-            });
-            this.logger.info({ userId, invalidCount: invalidTokens.length, correlationId: getCorrelationId() }, 'Desativados tokens Expo inválidos');
-        }
+    private async delay(attempt: number) {
+        const base = 250; // ms
+        const ms = base * Math.pow(2, attempt - 1);
+        await new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    private isRetryableStatus(status: number): boolean {
+        return status === 408 || (status >= 500 && status < 600);
+    }
+
+    private isRetryableError(err: unknown): boolean {
+        if (!err) return false;
+        const candidate = err as any;
+        const codes = [candidate?.code, candidate?.cause?.code]
+            .filter((code): code is string => typeof code === 'string')
+            .map((code) => code.toLowerCase());
+        const message = (candidate?.message || '').toLowerCase();
+        const retryableCodes = ['econnreset', 'und_err_req_aborted', 'und_err_socket', 'etimedout', 'econnaborted'];
+        const retryableFragments = ['premature close', 'socket hang up', 'connection reset'];
+        return codes.some((code) => retryableCodes.includes(code)) || retryableFragments.some((frag) => message.includes(frag));
     }
 
     async sendSosBulk(messages: SosMessage[]): Promise<{ sent: number }> {

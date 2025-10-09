@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { EmergencyContact } from '../models/EmergencyContact';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
 import { request as __request } from '../core/request';
@@ -12,14 +13,13 @@ export class EmergencyService {
      * @returns any Ok
      * @throws ApiError
      */
-    public static triggerSos(): CancelablePromise<any> {
+    public static triggerSos(): CancelablePromise<{
+        sent: number;
+        contacts: Array<EmergencyContact>;
+    }> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/emergency/sos',
-            errors: {
-                429: `Rate limit`,
-                500: `Erro interno`,
-            },
         });
     }
 }

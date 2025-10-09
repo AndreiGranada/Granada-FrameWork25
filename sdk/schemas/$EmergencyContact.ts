@@ -16,9 +16,10 @@ export const $EmergencyContact = {
             type: 'string',
             isRequired: true,
         },
-        priority: {
-            type: 'number',
-            isRequired: true,
+        customMessage: {
+            type: 'string',
+            description: `Mensagem personalizada para este contato (fallback mensagem global /sos)`,
+            isNullable: true,
         },
         isActive: {
             type: 'boolean',

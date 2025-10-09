@@ -6,7 +6,10 @@ export type EmergencyContact = {
     id: string;
     name: string;
     phone: string;
-    priority: number;
+    /**
+     * Mensagem personalizada para este contato (fallback mensagem global /sos)
+     */
+    customMessage?: string | null;
     isActive: boolean;
 };
 

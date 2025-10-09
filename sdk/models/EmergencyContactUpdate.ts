@@ -5,7 +5,7 @@
 export type EmergencyContactUpdate = {
     name?: string;
     phone?: string;
-    priority?: number;
+    customMessage?: string;
     isActive?: boolean;
 };
 

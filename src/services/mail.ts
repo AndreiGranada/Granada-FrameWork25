@@ -3,7 +3,11 @@ import nodemailer from 'nodemailer';
 // Em desenvolvimento apenas loga no console. Ajustar para SMTP real.
 export async function sendPasswordResetEmail(to: string, token: string) {
     // Build deep link to frontend reset route (Expo Web or configured FRONTEND_URL)
-    const base = process.env.FRONTEND_URL || 'http://localhost:8081';
+    const candidates = (process.env.FRONTEND_URLS || '')
+        .split(',')
+        .map((url) => url.trim())
+        .filter(Boolean);
+    const base = candidates[0] || process.env.FRONTEND_URL || 'http://localhost:8081';
     const resetUrl = `${base}/reset?token=${encodeURIComponent(token)}`;
     if (process.env.NODE_ENV !== 'production') {
         console.log('[MAIL:DEV] Enviar link de reset para', to, resetUrl);

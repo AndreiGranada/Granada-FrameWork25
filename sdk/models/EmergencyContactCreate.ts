@@ -5,6 +5,13 @@
 export type EmergencyContactCreate = {
     name: string;
     phone: string;
-    priority?: number;
+    /**
+     * Mensagem personalizada opcional
+     */
+    customMessage?: string;
+    /**
+     * Quando omitido assume true
+     */
+    isActive?: boolean;
 };
 

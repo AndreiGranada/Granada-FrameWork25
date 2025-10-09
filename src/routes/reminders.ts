@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 import { errorHelpers, mapZodError } from '../lib/errors';
+import { resyncUpcomingEventsForReminder, resyncUpcomingEventsForSchedule } from '../services/intakeEventsSync';
 
 const router = Router();
 
@@ -79,6 +80,7 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
                 }
             }
         });
+        await resyncUpcomingEventsForReminder(reminder.id);
         res.status(201).json(reminder);
     } catch (err: any) {
         if (err instanceof z.ZodError) return errorHelpers.badRequest(res, 'Falha de validação', mapZodError(err));
@@ -155,6 +157,7 @@ router.patch('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
         const data = updateReminderSchema.parse(req.body);
         const r = await prisma.medicationReminder.findFirst({ where: { id: req.params.id, userId: req.userId } });
         if (!r) return errorHelpers.notFound(res, 'Reminder não encontrado');
+        const toggledActive = typeof data.isActive !== 'undefined' && data.isActive !== r.isActive;
         const updated = await prisma.medicationReminder.update({
             where: { id: r.id },
             data: {
@@ -183,6 +186,9 @@ router.patch('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
                 }
             }
         });
+        if (toggledActive) {
+            await resyncUpcomingEventsForReminder(updated.id);
+        }
         res.json(updated);
     } catch (err: any) {
         if (err instanceof z.ZodError) return errorHelpers.badRequest(res, 'Falha de validação', mapZodError(err));
@@ -197,14 +203,16 @@ router.post('/:id/schedules', async (req: AuthRequest, res: Response): Promise<v
         const data = scheduleSchema.parse(req.body);
         const r = await prisma.medicationReminder.findFirst({ where: { id: req.params.id, userId: req.userId } });
         if (!r) return errorHelpers.notFound(res, 'Reminder não encontrado');
-        await prisma.medicationSchedule.create({
+        const createdSchedule = await prisma.medicationSchedule.create({
             data: {
                 medicationReminderId: r.id,
                 ingestionTimeMinutes: data.ingestionTimeMinutes,
                 daysOfWeekBitmask: data.daysOfWeekBitmask ?? 0,
                 isActive: data.isActive ?? true
-            }
+            },
+            select: { id: true }
         });
+        await resyncUpcomingEventsForSchedule(createdSchedule.id);
         const updatedReminder = await prisma.medicationReminder.findUnique({
             where: { id: r.id },
             select: {
@@ -249,6 +257,7 @@ router.patch('/schedules/:scheduleId', async (req: AuthRequest, res: Response): 
                 isActive: data.isActive ?? schedule.isActive
             }
         });
+        await resyncUpcomingEventsForSchedule(schedule.id);
         const reminder = await prisma.medicationReminder.findUnique({
             where: { id: schedule.medicationReminderId },
             select: {
@@ -285,6 +294,7 @@ router.delete('/schedules/:scheduleId', async (req: AuthRequest, res: Response):
         });
         if (!schedule) return errorHelpers.notFound(res, 'Schedule não encontrado');
         await prisma.medicationSchedule.delete({ where: { id: schedule.id } });
+        await resyncUpcomingEventsForSchedule(schedule.id);
         res.status(204).send();
     } catch (err) {
         console.error(err);
@@ -306,6 +316,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response): Promise<void> => 
             prisma.medicationReminder.update({ where: { id: reminder.id }, data: { isActive: false } }),
             prisma.medicationSchedule.updateMany({ where: { medicationReminderId: reminder.id }, data: { isActive: false } })
         ]);
+        await resyncUpcomingEventsForReminder(reminder.id);
         res.status(204).send();
     } catch (err) {
         console.error(err);

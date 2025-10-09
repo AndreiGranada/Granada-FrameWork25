@@ -75,14 +75,14 @@ CREATE TABLE `EmergencyContact` (
     `userId` VARCHAR(191) NOT NULL,
     `name` VARCHAR(120) NOT NULL,
     `phone` VARCHAR(25) NOT NULL,
-    `priority` INTEGER NOT NULL DEFAULT 0,
+    `customMessage` VARCHAR(500) NULL,
     `isActive` BOOLEAN NOT NULL DEFAULT true,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
     INDEX `EmergencyContact_userId_idx`(`userId`),
     INDEX `EmergencyContact_isActive_idx`(`isActive`),
-    INDEX `EmergencyContact_userId_isActive_priority_idx`(`userId`, `isActive`, `priority`),
+    INDEX `EmergencyContact_userId_isActive_createdAt_idx`(`userId`, `isActive`, `createdAt`),
     UNIQUE INDEX `EmergencyContact_userId_phone_key`(`userId`, `phone`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

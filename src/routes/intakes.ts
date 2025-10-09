@@ -9,6 +9,9 @@ import { addHours } from 'date-fns';
 const router = Router();
 router.use(authMiddleware);
 
+const GRACE_PERIOD_MINUTES = Number(process.env.INTAKE_GRACE_PERIOD_MIN ?? 15);
+const GRACE_PERIOD_MS = GRACE_PERIOD_MINUTES * 60 * 1000;
+
 // Query schemas
 const listSchema = z.object({
     from: z.string().datetime().optional(),
@@ -54,6 +57,7 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
             status: e.status,
             attempts: e.attempts,
             takenAt: e.takenAt,
+            graceEndsAt: new Date(e.scheduledAt.getTime() + GRACE_PERIOD_MS),
             reminder: e.medicationReminder ? {
                 id: e.medicationReminder.id,
                 name: e.medicationReminder.name,
@@ -112,6 +116,7 @@ router.get('/history', async (req: AuthRequest, res: Response): Promise<void> =>
                 status: e.status,
                 attempts: e.attempts,
                 takenAt: e.takenAt,
+                graceEndsAt: new Date(e.scheduledAt.getTime() + GRACE_PERIOD_MS),
                 reminder: e.medicationReminder ? { id: e.medicationReminder.id, name: e.medicationReminder.name, photoUrl: e.medicationReminder.photoUrl } : undefined,
                 schedule: e.medicationSchedule ? { id: e.medicationSchedule.id, ingestionTimeMinutes: e.medicationSchedule.ingestionTimeMinutes } : null
             }));
@@ -140,6 +145,7 @@ router.get('/history', async (req: AuthRequest, res: Response): Promise<void> =>
             status: e.status,
             attempts: e.attempts,
             takenAt: e.takenAt,
+            graceEndsAt: new Date(e.scheduledAt.getTime() + GRACE_PERIOD_MS),
             reminder: e.medicationReminder ? { id: e.medicationReminder.id, name: e.medicationReminder.name, photoUrl: e.medicationReminder.photoUrl } : undefined,
             schedule: e.medicationSchedule ? { id: e.medicationSchedule.id, ingestionTimeMinutes: e.medicationSchedule.ingestionTimeMinutes } : null
         }));

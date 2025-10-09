@@ -85,7 +85,7 @@ export const createApp = () => {
         next();
     });
 
-    app.get('/health', (_req: Request, res: Response): void => { res.json({ status: 'ok' }); });
+    app.get('/health', (_req: Request, res: Response): void => { res.json({ status: 'ok', time: new Date().toISOString() }); });
 
     app.use('/auth', authRoutes);
     app.use('/reminders', remindersRoutes);

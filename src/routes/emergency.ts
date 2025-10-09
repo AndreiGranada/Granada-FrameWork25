@@ -14,14 +14,14 @@ router.use(authMiddleware);
 const createContactSchema = z.object({
     name: z.string().min(1).max(120),
     phone: z.string().min(5).max(25),
-    priority: z.number().int().min(0).max(100).optional().default(0),
+    customMessage: z.string().min(1).max(500).optional(),
     isActive: z.boolean().optional().default(true)
 });
 
 const updateContactSchema = z.object({
     name: z.string().min(1).max(120).optional(),
     phone: z.string().min(5).max(25).optional(),
-    priority: z.number().int().min(0).max(100).optional(),
+    customMessage: z.string().min(1).max(500).optional().nullable(),
     isActive: z.boolean().optional()
 });
 
@@ -45,8 +45,8 @@ router.post('/emergency-contacts', async (req: AuthRequest, res: Response): Prom
             try { await ensureActiveLimit(req.userId!); } catch { return errorHelpers.badRequest(res, 'Limite de 5 contatos ativos atingido'); }
         }
         const created = await prisma.emergencyContact.create({
-            data: { userId: req.userId!, name: data.name, phone: data.phone, priority: data.priority, isActive: data.isActive },
-            select: { id: true, name: true, phone: true, priority: true, isActive: true }
+            data: { userId: req.userId!, name: data.name, phone: data.phone, customMessage: data.customMessage, isActive: data.isActive },
+            select: { id: true, name: true, phone: true, customMessage: true, isActive: true }
         });
         res.status(201).json(created);
     } catch (err: any) {
@@ -62,8 +62,8 @@ router.get('/emergency-contacts', async (req: AuthRequest, res: Response): Promi
     try {
         const contacts = await prisma.emergencyContact.findMany({
             where: { userId: req.userId },
-            orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
-            select: { id: true, name: true, phone: true, priority: true, isActive: true }
+            orderBy: [{ createdAt: 'asc' }],
+            select: { id: true, name: true, phone: true, customMessage: true, isActive: true }
         });
         res.json(contacts);
     } catch (err) {
@@ -87,10 +87,10 @@ router.patch('/emergency-contacts/:id', async (req: AuthRequest, res: Response):
             data: {
                 name: data.name ?? contact.name,
                 phone: data.phone ?? contact.phone,
-                priority: data.priority ?? contact.priority,
+                customMessage: data.customMessage === undefined ? contact.customMessage : data.customMessage || null,
                 isActive: data.isActive ?? contact.isActive
             },
-            select: { id: true, name: true, phone: true, priority: true, isActive: true }
+            select: { id: true, name: true, phone: true, customMessage: true, isActive: true }
         });
         res.json(updated);
     } catch (err: any) {
@@ -116,16 +116,16 @@ router.post('/sos', sosLimiter, async (req: AuthRequest, res: Response): Promise
         const { message } = sosSchema.parse(req.body);
         const contacts = await prisma.emergencyContact.findMany({
             where: { userId: req.userId, isActive: true },
-            orderBy: [{ priority: 'asc' }],
+            orderBy: [{ createdAt: 'asc' }],
             take: 5,
             // Retornar apenas os campos documentados/publicados
-            select: { id: true, name: true, phone: true, priority: true, isActive: true }
+            select: { id: true, name: true, phone: true, customMessage: true, isActive: true }
         });
         if (!contacts.length) return errorHelpers.badRequest(res, 'Nenhum contato ativo cadastrado');
 
-        const base = message || 'S.O.S. Necessito de ajuda agora.';
+        const globalBase = message || 'S.O.S. Necessito de ajuda agora.';
         const notify = getNotificationProvider();
-        const payload = contacts.map(c => ({ to: c.phone, name: c.name, text: base }));
+        const payload = contacts.map(c => ({ to: c.phone, name: c.name, text: c.customMessage || globalBase }));
         const result = await notify.sendSosBulk(payload);
         res.json({ sent: result.sent, contacts });
     } catch (err: any) {

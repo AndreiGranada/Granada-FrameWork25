@@ -10,8 +10,8 @@ export const $EmergencyContactUpdate = {
         phone: {
             type: 'string',
         },
-        priority: {
-            type: 'number',
+        customMessage: {
+            type: 'string',
         },
         isActive: {
             type: 'boolean',

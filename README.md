@@ -2,6 +2,8 @@
 
 Backend em Node.js + TypeScript, Express e Prisma para gerenciamento de lembretes de medicação, eventos de tomada, S.O.S. e notificações.
 
+> Versão atual do contrato OpenAPI: **1.3.0** (ver `openapi.yaml`). Se você gerou SDKs em versões 1.0.x ou 1.1.x, regenere para obter paginação de histórico, respostas expandidas e o novo campo `graceEndsAt`.
+
 ## Visão Geral
 
 - Lembretes com múltiplos horários (MedicationSchedule)
@@ -13,6 +15,7 @@ Backend em Node.js + TypeScript, Express e Prisma para gerenciamento de lembrete
 - Recuperação de senha por e-mail
 - Jobs de agendamento, alarmes e limpeza
 - Camada de Notificações com provider de desenvolvimento (log) e providers para WhatsApp/FCM/Expo
+- Janela de tolerância configurável via env (`INTAKE_GRACE_PERIOD_MIN`) permitindo exibir o horário limite (`graceEndsAt`) na API
 
 ## Requisitos
 
@@ -48,9 +51,14 @@ RATE_LIMIT_AUTH_MAX=20
 RATE_LIMIT_SOS_WINDOW=1h
 RATE_LIMIT_SOS_MAX=5
 
+# Intakes (janela de tolerância)
+INTAKE_GRACE_PERIOD_MIN=15
+
 # E-mail (dev/prod)
 EMAIL_DEV_LOG=true
-FRONTEND_URL=http://localhost:5173
+# URL base do frontend para links de e-mail (reset, etc.)
+# Em apps Expo Web, a porta padrão costuma ser 8081 (se ocupada pode alternar p/ 8082). Ajuste conforme scripts do front.
+FRONTEND_URL=http://localhost:8081
 SMTP_HOST=
 SMTP_PORT=587
 SMTP_USER=
@@ -115,19 +123,23 @@ Observações:
 
 - `npm run dev` — inicia o servidor em modo desenvolvimento (ts-node-dev)
 - `npm run build` — gera saída JavaScript em `dist/`
-- `npm start` — roda a versão compilada
+- `npm run start` — roda a versão compilada (use após `npm run build`)
 - `npm run generate` — gera Prisma Client
-- `npm run migrate` — aplica migrações em desenvolvimento
-- `npm run migrate:deploy` — aplica migrações em produção/CI
-- `npm test` — executa testes (Jest)
-- `npm run smoke` — executa um smoke test end-to-end local (requer servidor e DB ativos)
+- `npm run migrate` — aplica migrações em desenvolvimento (`prisma migrate dev`)
+- `npm run migrate:deploy` — aplica migrações em produção/CI (`prisma migrate deploy`)
+- `npm test` — executa a suíte completa (Jest)
+- `npm run test:contract` — smoke rápido de regressões de contrato (testes focados em additions do OpenAPI)
+- `npm run smoke` — executa o script end-to-end local (requer servidor e DB ativos)
+- `npm run sdk:generate` — gera SDK TypeScript na pasta `sdk/`
+- `npm run sdk:update` — gera e copia SDK para `FrontEnd/my-app/sdk-backend`
+- `npm run openapi:validate` — valida `openapi.yaml` com o Redocly CLI
 
 ## Banco de Dados (Prisma)
 
 - Schema em `prisma/schema.prisma`
 - Para sincronizar:
-  - `npm run prisma:migrate`
-  - `npm run prisma:generate`
+  - `npm run migrate`
+  - `npm run generate`
 
 ## Como Rodar (Windows PowerShell)
 
@@ -180,6 +192,8 @@ Observações:
 - Caso use Docker para o banco, garanta que o container esteja saudável antes de rodar o smoke.
 
 ## Endpoints Essenciais
+
+> Endpoints de desenvolvimento (somente quando `NODE_ENV != production`): `POST /dev/test-sos`, `POST /dev/test-alarm` auxiliam testes manuais de providers sem acionar fluxos reais completos. Não consumir em produção.
 
 Auth:
 
@@ -240,7 +254,7 @@ Docs (Swagger UI):
 - startIntakeScheduler: a cada 5 min, gera eventos das próximas 24h
 - startAlarmProcessor: a cada 1 min, reenvia alarmes e marca MISSED após janela
 - startCleanupJob: a cada 1h, remove tokens expirados/antigos e intakes > 90d
-  - Parametrizações via .env: ALARM_RETRY_INTERVAL_MIN, ALARM_MAX_ATTEMPTS, ALARM_MARK_MISSED_AFTER_MIN, ALARM_SCAN_WINDOW_HOURS
+  - Parametrizações via .env: ALARM_RETRY_INTERVAL_MIN, ALARM_MAX_ATTEMPTS, ALARM_MARK_MISSED_AFTER_MIN, ALARM_SCAN_WINDOW_HOURS, INTAKE_GRACE_PERIOD_MIN
 
 ## Notificações
 
@@ -274,9 +288,16 @@ Uso interno/educacional. Adapte conforme sua necessidade.
 
 ## Versionamento
 
-Este backend está congelado como versão inicial **v1.0.0** (ver `CHANGELOG.md`).
+Estado atual: **1.3.0**.
 
-Política adotada:
+Resumo rápido das versões recentes (detalhes nas tags/releases do Git):
+
+- 1.3.0: Campo `graceEndsAt` em respostas de intakes (ajuda na UX para janela de tolerância) e documentação da env `INTAKE_GRACE_PERIOD_MIN`.
+- 1.2.0: Paginação experimental em `/intakes/history` (`limit` + `cursor`, envelope `{ data, pageInfo }`, mantendo oneOf com modo legado `days`).
+- 1.1.0: Introdução de schema `AuthSession`, respostas enriquecidas de Reminder/Schedule, documentação de bitmask de dias.
+- 1.0.0: Versão inicial com domínios principais (auth, reminders, intakes, emergency, devices) e providers de notificação.
+
+Política SemVer adotada:
 
 - **MAJOR**: quebras de contrato (mudança de campos obrigatórios, remoção de endpoints, alterações de semântica).
 - **MINOR**: adição retrocompatível de endpoints/campos opcionais.
@@ -287,6 +308,12 @@ Boas práticas para evoluções futuras:
 1. Nunca remover ou mudar tipo de campo sem bump de MAJOR.
 2. Campos novos sempre opcionais inicialmente (ou com default seguro).
 3. Avaliar introduzir prefixo `/v2` apenas quando MAJOR for inevitável.
-4. Documentar mudanças no `CHANGELOG.md` e regenerar SDK após cada release.
+4. Documentar mudanças nas notas de release (tags do Git) e regenerar o SDK após cada release.
 
-Congelamento atual: nenhum trabalho adicional de schema será feito até surgirem requisitos do app. Abrir issues para propostas antes de alterar o OpenAPI.
+Observação: antes de remover ou alterar campos obrigatórios abra uma issue e considere bump de MAJOR ou introdução de campos opcionais transitórios. Para novas features que exigem alteração de contratos gere novamente o SDK e atualize o front (scripts de sync já propagam o `EXPO_PUBLIC_API_BASE_URL`).
+
+### Integração com Frontend (Expo)
+
+- Scripts do frontend (pasta `FrontEnd/my-app`) sincronizam automaticamente a porta real do Expo Web e escrevem `FRONTEND_URL`/`FRONTEND_URLS` + `CORS_ORIGINS` via `sync-backend-frontend-url.js` (8081 e 8082 já são incluídas por padrão).
+- Caso o Expo mude para uma porta fora do par 8081/8082, execute `node ./scripts/sync-backend-frontend-url.js <host> <novaPorta>` para acrescentá-la e garantir que links de e-mail (ex.: reset) continuem válidos.
+- O fluxo de refresh de token do front realiza fila de requisições paralelas; ao falhar o refresh a sessão é invalidada imediatamente.

@@ -125,22 +125,22 @@ model IntakeEvent {
 
 // Contato de emergência (para envio de S.O.S.)
 model EmergencyContact {
-  id        String   @id @default(cuid())
-  userId    String
-  name      String   @db.VarChar(120)
-  phone     String   @db.VarChar(25)
-  priority  Int      @default(0) // Ordem de exibição / envio (0..4)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  userId        String
+  name          String   @db.VarChar(120)
+  phone         String   @db.VarChar(25)
+  customMessage String?  @db.VarChar(500) // Mensagem personalizada a ser enviada para este contato (fallback para mensagem global de /sos)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, phone])
   @@index([userId])
   @@index([isActive])
-  // Contagem/listagem por usuário+ativo com ordenação por prioridade
-  @@index([userId, isActive, priority])
+  // Contagem/listagem por usuário+ativo com ordenação simples por criação
+  @@index([userId, isActive, createdAt])
 }
 
 // Dispositivo cadastrado para push / alarmes

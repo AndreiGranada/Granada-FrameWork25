@@ -13,6 +13,10 @@ export type IntakeEventExpanded = {
     status: IntakeEventExpanded.status;
     attempts: number;
     takenAt?: string | null;
+    /**
+     * Data/hora limite da janela de tolerância (scheduledAt + configuração INTAKE_GRACE_PERIOD_MIN).
+     */
+    graceEndsAt?: string;
     reminder: {
         id: string;
         name: string;

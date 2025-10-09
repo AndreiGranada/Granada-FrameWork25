@@ -23,7 +23,7 @@ router.post('/test-sos', async (req: AuthRequest, res: Response): Promise<void> 
         const { message } = sosSchema.parse(req.body);
         const contacts = await prisma.emergencyContact.findMany({
             where: { userId: req.userId, isActive: true },
-            orderBy: [{ priority: 'asc' }],
+            orderBy: [{ createdAt: 'asc' }],
             take: 5
         });
         if (!contacts.length) return errorHelpers.badRequest(res, 'Nenhum contato ativo cadastrado');
