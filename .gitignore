@@ -1,25 +1,51 @@
-# Global
-.DS_Store
-Thumbs.db
-
-# Node / JS
+# Dependencies
 node_modules/
+
+# Logs
+logs/
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Build outputs
-dist/
-build/
-coverage/
-.nyc_output/
-.eslintcache
-.cache/
-.tmp/
+# Build output
+/dist/
+/build/
+/cache/
+/tmp/
+/temp/
+/coverage/
 
 # TypeScript
 *.tsbuildinfo
+
+# Testing
+/.jest/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Editor & IDE
+.vscode/
+.history/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Prisma (local sqlite, if any)
+prisma/dev.db
+prisma/dev.db-journal
+
+# Docker data (if any)
+docker-data/
+
+# Generated SDK
+/generated/prisma
 
 # Expo / React Native
 .expo/
@@ -27,30 +53,17 @@ coverage/
 web-build/
 .sourcemaps/
 
-# iOS / Android (se gerar nativo)
+# iOS / Android (if generating native)
 ios/
 android/
 
-# VS Code / Editor
-.vscode/
-.history/
-
-# Env files
-.env
-.env.*
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Prisma (db locais)
-**/prisma/*.db
-**/prisma/*.db-journal
-
-# Logs
-logs/
-*.log
-lerna-debug.log*
-
-# Docker (dados locais)
-docker-data/
+# Frontend artifacts not used in backend
+App.tsx
+app.json
+app-env.d.ts
+babel.config.js
+metro.config.js
+nativewind-env.d.ts
+tailwind.config.js
+global.css
+frontend-examples/
