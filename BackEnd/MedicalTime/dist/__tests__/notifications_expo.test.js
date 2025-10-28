@@ -25,9 +25,13 @@ describe('ExpoProvider', () => {
         // Limpa tabelas relevantes
         yield prisma_1.prisma.device.deleteMany();
         yield prisma_1.prisma.user.deleteMany();
+        process.env.NOTIFY_DRY_RUN = 'true';
+        delete process.env.EXPO_ACCESS_TOKEN;
+        if (global.fetch !== originalFetch) {
+            global.fetch = originalFetch;
+        }
     }));
     it('envia em dry-run sem chamar fetch quando não há tokens', () => __awaiter(void 0, void 0, void 0, function* () {
-        process.env.NOTIFY_DRY_RUN = 'true';
         const provider = new push_1.ExpoProvider();
         const user = yield prisma_1.prisma.user.create({ data: { email: 'expo1@test.com', passwordHash: 'x' } });
         yield provider.sendAlarm(user.id, 'event-1');
@@ -69,5 +73,31 @@ describe('ExpoProvider', () => {
         // Verifica que o token inválido foi desativado
         const activeDevices = yield prisma_1.prisma.device.findMany({ where: { userId: user.id, isActive: true } });
         expect(activeDevices.length).toBe(2); // 1 expo ok + 1 non-expo continua ativo
+    }));
+    it('reitera envio quando fetch falha de forma transitória', () => __awaiter(void 0, void 0, void 0, function* () {
+        process.env.NOTIFY_DRY_RUN = 'false';
+        process.env.EXPO_ACCESS_TOKEN = 'token-test';
+        let attempt = 0;
+        const responses = [
+            () => {
+                const err = new Error('Premature close');
+                err.code = 'UND_ERR_REQ_ABORTED';
+                throw err;
+            },
+            () => ({
+                ok: true,
+                json: () => __awaiter(void 0, void 0, void 0, function* () { return ({ data: [{ status: 'ok' }] }); })
+            })
+        ];
+        global.fetch = jest.fn(() => __awaiter(void 0, void 0, void 0, function* () {
+            const handler = responses[Math.min(attempt, responses.length - 1)];
+            attempt += 1;
+            return handler();
+        }));
+        const provider = new push_1.ExpoProvider();
+        const user = yield prisma_1.prisma.user.create({ data: { email: 'expo3@test.com', passwordHash: 'x' } });
+        yield prisma_1.prisma.device.create({ data: { userId: user.id, platform: 'ANDROID', pushToken: 'ExponentPushToken[retry]', isActive: true } });
+        yield provider.sendAlarm(user.id, 'event-3');
+        expect(global.fetch).toHaveBeenCalledTimes(2);
     }));
 });

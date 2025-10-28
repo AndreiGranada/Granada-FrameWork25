@@ -38,7 +38,11 @@ describe('Scheduler & Cleanup', () => {
             .send({ name: 'Med A', schedules: [{ ingestionTimeMinutes: 480 }] })
             .expect(201);
         expect(reminder.body.id).toBeTruthy();
+        const already = yield prisma_1.prisma.intakeEvent.count({ where: { userId } });
+        expect(already).toBeGreaterThan(0);
+        yield prisma_1.prisma.intakeEvent.deleteMany({ where: { userId } });
         const before = yield prisma_1.prisma.intakeEvent.count({ where: { userId } });
+        expect(before).toBe(0);
         const r1 = yield (0, intakeScheduler_1.generateUpcomingIntakeEvents)();
         const after1 = yield prisma_1.prisma.intakeEvent.count({ where: { userId } });
         const r2 = yield (0, intakeScheduler_1.generateUpcomingIntakeEvents)();

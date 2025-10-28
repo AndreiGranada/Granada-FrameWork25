@@ -53,6 +53,7 @@ exports.FcmProvider = FcmProvider;
 class ExpoProvider {
     constructor() {
         this.logger = logger_1.logger.child({ svc: 'ExpoProvider' });
+        this.maxRetries = 3;
         this.accessToken = process.env.EXPO_ACCESS_TOKEN;
         this.dryRun = getBool('NOTIFY_DRY_RUN', 'true');
         if (!this.accessToken && !this.dryRun) {
@@ -95,6 +96,24 @@ class ExpoProvider {
             const batches = chunk(messages, 100);
             const invalidTokens = [];
             for (const batch of batches) {
+                const batchInvalid = yield this.sendBatchWithRetry(url, batch);
+                if (batchInvalid.length > 0) {
+                    invalidTokens.push(...batchInvalid);
+                }
+            }
+            if (invalidTokens.length > 0) {
+                yield prisma_1.prisma.device.updateMany({
+                    where: { userId, pushToken: { in: invalidTokens } },
+                    data: { isActive: false }
+                });
+                this.logger.info({ userId, invalidCount: invalidTokens.length, correlationId: (0, als_1.getCorrelationId)() }, 'Desativados tokens Expo inválidos');
+            }
+        });
+    }
+    sendBatchWithRetry(url, batch) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const invalidTokens = [];
+            for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
                 try {
                     const resp = yield fetch(url, {
                         method: 'POST',
@@ -103,8 +122,14 @@ class ExpoProvider {
                     });
                     if (!resp.ok) {
                         const txt = yield resp.text();
-                        this.logger.error({ status: resp.status, txt, correlationId: (0, als_1.getCorrelationId)() }, 'Falha ao enviar lote Expo');
-                        continue;
+                        const context = { status: resp.status, txt, attempt, correlationId: (0, als_1.getCorrelationId)() };
+                        const retryable = this.isRetryableStatus(resp.status) && attempt < this.maxRetries;
+                        this.logger.error(context, 'Falha ao enviar lote Expo');
+                        if (retryable) {
+                            yield this.delay(attempt);
+                            continue;
+                        }
+                        break;
                     }
                     const json = yield resp.json();
                     const results = Array.isArray(json === null || json === void 0 ? void 0 : json.data) ? json.data : [];
@@ -121,19 +146,43 @@ class ExpoProvider {
                             }
                         }
                     });
+                    break;
                 }
-                catch (e) {
-                    this.logger.error({ err: e, correlationId: (0, als_1.getCorrelationId)() }, 'Exceção ao enviar lote Expo');
+                catch (err) {
+                    const retryable = this.isRetryableError(err) && attempt < this.maxRetries;
+                    this.logger.error({ err, attempt, correlationId: (0, als_1.getCorrelationId)(), retryable }, 'Exceção ao enviar lote Expo');
+                    if (retryable) {
+                        yield this.delay(attempt);
+                        continue;
+                    }
+                    break;
                 }
             }
-            if (invalidTokens.length > 0) {
-                yield prisma_1.prisma.device.updateMany({
-                    where: { userId, pushToken: { in: invalidTokens } },
-                    data: { isActive: false }
-                });
-                this.logger.info({ userId, invalidCount: invalidTokens.length, correlationId: (0, als_1.getCorrelationId)() }, 'Desativados tokens Expo inválidos');
-            }
+            return invalidTokens;
         });
+    }
+    delay(attempt) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const base = 250; // ms
+            const ms = base * Math.pow(2, attempt - 1);
+            yield new Promise((resolve) => setTimeout(resolve, ms));
+        });
+    }
+    isRetryableStatus(status) {
+        return status === 408 || (status >= 500 && status < 600);
+    }
+    isRetryableError(err) {
+        var _a;
+        if (!err)
+            return false;
+        const candidate = err;
+        const codes = [candidate === null || candidate === void 0 ? void 0 : candidate.code, (_a = candidate === null || candidate === void 0 ? void 0 : candidate.cause) === null || _a === void 0 ? void 0 : _a.code]
+            .filter((code) => typeof code === 'string')
+            .map((code) => code.toLowerCase());
+        const message = ((candidate === null || candidate === void 0 ? void 0 : candidate.message) || '').toLowerCase();
+        const retryableCodes = ['econnreset', 'und_err_req_aborted', 'und_err_socket', 'etimedout', 'econnaborted'];
+        const retryableFragments = ['premature close', 'socket hang up', 'connection reset'];
+        return codes.some((code) => retryableCodes.includes(code)) || retryableFragments.some((frag) => message.includes(frag));
     }
     sendSosBulk(messages) {
         return __awaiter(this, void 0, void 0, function* () {

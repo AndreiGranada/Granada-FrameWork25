@@ -54,6 +54,7 @@
     "test:contract": "jest __tests__/contract_additions.test.ts",
     "openapi:validate": "npx @redocly/cli lint openapi.yaml || exit 1",
     "smoke": "node scripts/smoke.js",
+    "test:email": "node scripts/test-email.js",
     "lint": "echo 'Adicionar eslint depois'",
     "test": "jest"
   },

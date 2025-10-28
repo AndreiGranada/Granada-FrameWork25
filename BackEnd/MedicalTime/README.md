@@ -56,13 +56,18 @@ INTAKE_GRACE_PERIOD_MIN=15
 
 # E-mail (dev/prod)
 EMAIL_DEV_LOG=true
-# URL base do frontend para links de e-mail (reset, etc.)
-# Em apps Expo Web, a porta padrão costuma ser 8081 (se ocupada pode alternar p/ 8082). Ajuste conforme scripts do front.
+# Observação sobre reset de senha
+# A recuperação de senha por e-mail envia APENAS o TOKEN (sem link).
+# O usuário deve colar o token na tela "/reset" do app/web.
+# A variável abaixo pode ser mantida por compatibilidade com outros recursos,
+# mas não é usada para montar links de reset:
 FRONTEND_URL=http://localhost:8081
-SMTP_HOST=
-SMTP_PORT=587
-SMTP_USER=
-SMTP_PASS=
+# Configurações SMTP (use Mailtrap para desenvolvimento)
+SMTP_HOST=sandbox.smtp.mailtrap.io
+SMTP_PORT=2525
+SMTP_USER=sua-mailtrap-username
+SMTP_PASS=sua-mailtrap-password
+MAIL_FROM=noreply@medicaltime.app
 
 # Notificações (providers)
 NOTIFY_PROVIDER=dev # dev | whatsapp | fcm | expo
@@ -133,6 +138,53 @@ Observações:
 - `npm run sdk:generate` — gera SDK TypeScript na pasta `sdk/`
 - `npm run sdk:update` — gera e copia SDK para `FrontEnd/my-app/sdk-backend`
 - `npm run openapi:validate` — valida `openapi.yaml` com o Redocly CLI
+
+## Configuração de Email
+
+O sistema possui funcionalidade de recuperação de senha via email. O e-mail de recuperação **envia apenas o token** (sem link). O usuário cola esse token na tela
+"Redefinir senha" do aplicativo/web. Para configurar:
+
+### Desenvolvimento (Mailtrap)
+
+1. **Criar conta no Mailtrap:**
+
+   - Acesse [mailtrap.io](https://mailtrap.io) e crie uma conta gratuita
+   - Crie um inbox de teste
+   - Copie as credenciais SMTP
+
+2. **Configurar .env:**
+
+   ```env
+   SMTP_HOST=sandbox.smtp.mailtrap.io
+   SMTP_PORT=2525
+   SMTP_USER=sua-mailtrap-username
+   SMTP_PASS=sua-mailtrap-password
+   MAIL_FROM=noreply@medicaltime.app
+   EMAIL_DEV_LOG=true
+   ```
+
+3. **Testar configuração:**
+
+   ```powershell
+   node scripts/test-email.js
+   ```
+
+4. **Fluxo de recuperação (dev):**
+   - Chame `POST /auth/forgot` com `{ email }`.
+   - Verifique seu inbox no Mailtrap e copie o token do e-mail recebido.
+   - No app/web, abra a tela `/reset`, cole o token e informe a nova senha.
+
+### Produção
+
+Para produção, configure um provedor real como:
+
+- **Gmail:** `smtp.gmail.com:587`
+- **Outlook:** `smtp.office365.com:587`
+- **SendGrid, Mailgun, Amazon SES, etc.**
+
+⚠️ **Importante:** Nunca use Mailtrap em produção!
+
+Documentação completa: [docs/MAILTRAP_SETUP.md](./docs/MAILTRAP_SETUP.md)
 
 ## Banco de Dados (Prisma)
 
@@ -249,6 +301,12 @@ Docs (Swagger UI):
 - Para renovar, chame `POST /auth/refresh` com `refreshToken` (rotação automática).
 - `POST /auth/logout` revoga todos os refresh tokens do usuário.
 
+### Recuperação de senha (token)
+
+- `POST /auth/forgot` gera um token válido por 30 minutos e envia por e-mail (sem link).
+- Na tela `/reset` do app/web, envie `{ token, password }` via formulário (o front chama `POST /auth/reset`).
+- O token é marcado como usado após sucesso e não pode ser reutilizado.
+
 ## Jobs Ativos
 
 - startIntakeScheduler: a cada 5 min, gera eventos das próximas 24h
@@ -315,5 +373,5 @@ Observação: antes de remover ou alterar campos obrigatórios abra uma issue e 
 ### Integração com Frontend (Expo)
 
 - Scripts do frontend (pasta `FrontEnd/my-app`) sincronizam automaticamente a porta real do Expo Web e escrevem `FRONTEND_URL`/`FRONTEND_URLS` + `CORS_ORIGINS` via `sync-backend-frontend-url.js` (8081 e 8082 já são incluídas por padrão).
-- Caso o Expo mude para uma porta fora do par 8081/8082, execute `node ./scripts/sync-backend-frontend-url.js <host> <novaPorta>` para acrescentá-la e garantir que links de e-mail (ex.: reset) continuem válidos.
+- Caso o Expo mude para uma porta fora do par 8081/8082, execute `node ./scripts/sync-backend-frontend-url.js <host> <novaPorta>` para acrescentá-la (útil para outras features e compatibilidade). Note que o e-mail de reset **não usa links**, apenas token.
 - O fluxo de refresh de token do front realiza fila de requisições paralelas; ao falhar o refresh a sessão é invalidada imediatamente.

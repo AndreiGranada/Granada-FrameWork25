@@ -15,6 +15,7 @@ const auth_1 = require("../middleware/auth");
 const prisma_1 = require("../lib/prisma");
 const notifications_1 = require("../services/notifications");
 const errors_1 = require("../lib/errors");
+const mail_1 = require("../services/mail");
 const router = (0, express_1.Router)();
 router.use(auth_1.authMiddleware);
 const sosSchema = zod_1.z.object({
@@ -23,6 +24,12 @@ const sosSchema = zod_1.z.object({
 const alarmSchema = zod_1.z.object({
     intakeEventId: zod_1.z.string().uuid().optional()
 });
+const mailSchema = zod_1.z.object({
+    to: zod_1.z.string().email(),
+    subject: zod_1.z.string().min(1).max(200).default('Teste de e-mail - MedicalTime'),
+    text: zod_1.z.string().max(4000).optional(),
+    html: zod_1.z.string().max(10000).optional()
+}).refine((d) => d.text || d.html, { message: 'Forneça text ou html', path: ['text'] });
 // Dispara SOS utilizando os contatos ativos do usuário (dev only)
 router.post('/test-sos', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -74,3 +81,25 @@ router.post('/test-alarm', (req, res) => __awaiter(void 0, void 0, void 0, funct
     }
 }));
 exports.default = router;
+// Envia e-mail de teste via Mailtrap (dev only)
+router.post('/test-mail', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const data = mailSchema.parse(req.body);
+        const info = yield (0, mail_1.sendEmail)({
+            to: data.to,
+            subject: data.subject,
+            text: data.text,
+            html: data.html
+        });
+        res.json({ ok: true, messageId: info === null || info === void 0 ? void 0 : info.messageId });
+    }
+    catch (err) {
+        if (err instanceof zod_1.z.ZodError)
+            return errors_1.errorHelpers.badRequest(res, 'Falha de validação', (0, errors_1.mapZodError)(err));
+        console.error('[DEV /test-mail] Erro:', err);
+        const isDev = process.env.NODE_ENV !== 'production';
+        if (isDev && (err === null || err === void 0 ? void 0 : err.message))
+            return errors_1.errorHelpers.internal(res, `Erro interno: ${err.message}`);
+        errors_1.errorHelpers.internal(res);
+    }
+}));
