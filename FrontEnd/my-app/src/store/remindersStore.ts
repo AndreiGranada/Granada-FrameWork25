@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { Reminder, ReminderCreate, ReminderUpdate, ScheduleCreate, ScheduleUpdate } from '@/sdk-backend';
 import { remindersAdapter } from '@/src/services/adapters/remindersAdapter';
+import { useAuthStore } from '@/src/store/authStore';
 
 interface RemindersState {
     // State
@@ -42,10 +43,22 @@ export const useRemindersStore = create<RemindersState>()(
                     state.isLoading = false;
                 });
             } catch (error: any) {
-                set((state) => {
-                    state.error = error?.response?.data?.error?.message || 'Falha ao carregar lembretes';
-                    state.isLoading = false;
-                });
+                const status = error?.response?.status;
+                if (status === 401) {
+                    // Sessão inválida/expirada: força logout e mostra mensagem amigável
+                    try {
+                        await useAuthStore.getState().logout();
+                    } catch {}
+                    set((state) => {
+                        state.error = 'Sessão expirada. Entre novamente.';
+                        state.isLoading = false;
+                    });
+                } else {
+                    set((state) => {
+                        state.error = error?.response?.data?.error?.message || 'Falha ao carregar lembretes';
+                        state.isLoading = false;
+                    });
+                }
             }
         },
 
