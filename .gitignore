@@ -1,0 +1,118 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+.vercel/
+
+# TypeScript
+*.tsbuildinfo
+
+# Testing
+coverage/
+.nyc_output/
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Logs
+logs/
+*.log
+*.csv
+
+# Docker
+.docker/
+docker/*.log
+
+# Prisma (keep schema and migrations, ignore local sqlite dbs if any)
+prisma/*.db
+prisma/*.db-journal
+# Dependencies
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build output
+/dist/
+/build/
+/cache/
+/tmp/
+/temp/
+
+# TypeScript
+*.tsbuildinfo
+
+# Testing
+/coverage/
+/.jest/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Editor & IDE
+.vscode/
+.history/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Prisma (local sqlite, if any)
+prisma/dev.db
+prisma/dev.db-journal
+
+# Docker data (if any)
+docker-data/
+
+# Others
+.tmp/
+node_modules
+# Keep environment variables out of version control
+.env
+
+/generated/prisma
+
+# Build outputs
+dist/
+coverage/
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+*.log
+
+# Frontend artifacts not used in backend
+App.tsx
+app.json
+app-env.d.ts
+babel.config.js
+metro.config.js
+nativewind-env.d.ts
+tailwind.config.js
+global.css
+frontend-examples/
