@@ -279,6 +279,19 @@ Recomenda-se executar smoke tests antes de abrir PRs para validar flows crítico
 - Habilite console verbose (`npm run web -- --verbose`) para investigar warnings do bundler.
 - Em cenários corporativos com proxy, use `npm run start:tunnel`.
 
+### Auto login de desenvolvimento (opcional)
+
+Para agilizar testes locais, é possível habilitar um auto-login em ambiente de desenvolvimento que tenta autenticar com credenciais de seed. Adicione ao `.env`:
+
+```env
+EXPO_PUBLIC_DEV_AUTO_AUTH=1
+# Opcional (defaults):
+# EXPO_PUBLIC_DEV_LOGIN_EMAIL=seed.user@medicaltime.local
+# EXPO_PUBLIC_DEV_LOGIN_PASSWORD=secret123
+```
+
+Com isso, ao abrir o app sem sessão, o app tentará logar automaticamente (ou registrar e logar) usando as credenciais acima. Recurso ignorado em produção.
+
 ## 📚 Documentação complementar
 
 - [`FRONTEND_KICKSTART.md`](./FRONTEND_KICKSTART.md) – Guia rápido para onboarding.

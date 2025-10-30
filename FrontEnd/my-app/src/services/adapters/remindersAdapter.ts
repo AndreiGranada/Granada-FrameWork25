@@ -15,6 +15,14 @@ export function __setRemindersSdkMock(mock: any) {
 
 
 export const remindersAdapter = {
+    async get(id: string) {
+        if (!DefaultServiceRef?.getReminder) throw new Error('SDK não carregado: gere o SDK (npm run sdk:update)');
+        logger.debug('[remindersAdapter] get:start', { id });
+        const r = await DefaultServiceRef.getReminder({ id });
+        logger.debug('[remindersAdapter] get:done', { id });
+        trackEvent('reminder_get', { id });
+        return r as Reminder;
+    },
     async list(): Promise<Reminder[]> {
         if (!DefaultServiceRef?.listReminders) throw new Error('SDK não carregado: gere o SDK (npm run sdk:update)');
         logger.debug('[remindersAdapter] list:start');

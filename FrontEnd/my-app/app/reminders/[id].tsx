@@ -8,6 +8,7 @@ import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { daysOfWeekFromBitmask, minutesToHHMM } from '@/src/lib/format';
 import { trackEvent, withScreen } from '@/src/observability/analytics';
 import { useNotifications, useRemindersStore, useThemeStore } from '@/src/store';
+import { useRequireAuth } from '@/src/lib/useRequireAuth';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Text, TouchableOpacity, View, Platform } from 'react-native';
@@ -30,25 +31,38 @@ export default function ReminderDetailScreen() {
   const router = useRouter();
   const { mode } = useThemeStore();
   const palette = Colors[mode];
-  const { reminders, loadReminders, addSchedule, updateSchedule, deleteSchedule, updateReminder } = useRemindersStore();
+  const { reminders, loadReminders, loadReminderById, addSchedule, updateSchedule, deleteSchedule, updateReminder } = useRemindersStore();
   const { success, error: notifyError } = useNotifications();
   const [loading, setLoading] = useState(false);
+  const { isAuthenticated, isLoading: authLoading } = useRequireAuth();
 
   const reminder = reminders.find(r => r.id === id);
 
   useEffect(() => {
-    if (!reminder) {
-      setLoading(true);
-      loadReminders().finally(() => setLoading(false));
-    } else {
+    if (authLoading) return;
+    if (!isAuthenticated) return; // redireciona pelo hook
+    if (!reminder && id) {
+      (async () => {
+        setLoading(true);
+        try {
+          const r = await loadReminderById(id);
+          if (!r) {
+            // não encontrado por id — garante lista para estado consistente
+            await loadReminders();
+          }
+        } finally {
+          setLoading(false);
+        }
+      })();
+    } else if (reminder) {
       withScreen('reminder_detail', { id });
     }
-  }, [reminder, loadReminders, id]);
+  }, [authLoading, isAuthenticated, reminder, id, loadReminderById, loadReminders]);
 
   async function handleAddSchedule() {
     if (!id) return;
     try {
-      await addSchedule(id, { ingestionTimeMinutes: 8*60, daysOfWeekBitmask: 0, isActive: true });
+      await addSchedule(id, { ingestionTimeMinutes: 8 * 60, daysOfWeekBitmask: 0, isActive: true });
       success('Horário adicionado');
       trackEvent('reminder_detail_schedule_add', { id });
     } catch { notifyError('Falha ao adicionar'); }
@@ -114,37 +128,47 @@ export default function ReminderDetailScreen() {
     }
   }
 
-  if (loading && !reminder) {
-    return <View style={{ flex:1, alignItems:'center', justifyContent:'center', backgroundColor: palette.background }}><ActivityIndicator color={palette.primary} /><Text style={{ ...Typography.caption, color: palette.textSecondary, marginTop: Spacing.md }}>Carregando...</Text></View>;
+  if ((authLoading || loading) && !reminder) {
+    return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.background }}><ActivityIndicator color={palette.primary} /><Text style={{ ...Typography.caption, color: palette.textSecondary, marginTop: Spacing.md }}>Carregando...</Text></View>;
   }
 
-  if (!reminder) {
+  if (!isAuthenticated && !authLoading) {
     return (
-      <View style={{ flex:1, alignItems:'center', justifyContent:'center', padding:Spacing.lg, backgroundColor: palette.background }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.lg, backgroundColor: palette.background }}>
+        <Text style={{ ...Typography.bodySemiBold, color: palette.text }}>Redirecionando para login…</Text>
+      </View>
+    );
+  }
+
+  if (!reminder && !loading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.lg, backgroundColor: palette.background }}>
         <Text style={{ ...Typography.bodySemiBold, color: palette.text }}>Lembrete não encontrado.</Text>
-        <TouchableOpacity onPress={() => router.back()} style={{ marginTop:Spacing.md }}>
+        <TouchableOpacity onPress={() => router.back()} style={{ marginTop: Spacing.md }}>
           <Text style={{ ...Typography.smallMedium, color: palette.primary }}>Voltar</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  const formattedPrice = formatPriceLabel(reminder.pricePaid);
-  const hasAdditionalInfo = Boolean(reminder.purpose || reminder.description || formattedPrice);
+  // A partir daqui, garantimos que `reminder` está definido (guardas acima retornam quando ausente)
+  const r = reminder!;
+  const formattedPrice = formatPriceLabel(r.pricePaid);
+  const hasAdditionalInfo = Boolean(r.purpose || r.description || formattedPrice);
 
-  const statusSubtitle = reminder.isActive ? 'Ativo' : 'Inativo';
+  const statusSubtitle = r.isActive ? 'Ativo' : 'Inativo';
 
   return (
-    <View style={{ flex:1, backgroundColor: palette.background }}>
-      <ScreenHeader title={reminder.name} subtitle={statusSubtitle} />
-      <View style={{ flex:1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, paddingBottom: Spacing.lg }}>
-        <View style={{ flexDirection:'row', alignItems:'center', gap: Spacing.sm, marginBottom: Spacing.lg }}>
-          <StatusBadge status={reminder.isActive ? 'success' : 'neutral'} text={reminder.isActive ? 'Ativo' : 'Inativo'} size="sm" />
+    <View style={{ flex: 1, backgroundColor: palette.background }}>
+      <ScreenHeader title={r.name} subtitle={statusSubtitle} />
+      <View style={{ flex: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, paddingBottom: Spacing.lg }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.lg }}>
+          <StatusBadge status={r.isActive ? 'success' : 'neutral'} text={r.isActive ? 'Ativo' : 'Inativo'} size="sm" />
         </View>
 
         {(hasAdditionalInfo || editingInfo) ? (
           <View style={{ backgroundColor: palette.surface, borderRadius: BorderRadius.md, padding: Spacing.md, borderWidth: 1, borderColor: palette.border, marginBottom: Spacing.lg, gap: Spacing.md }}>
-            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={{ ...Typography.captionMedium, color: palette.textSecondary }}>Informações opcionais</Text>
               {!editingInfo ? (
                 <TouchableOpacity onPress={() => setEditingInfo(true)}>
@@ -155,10 +179,10 @@ export default function ReminderDetailScreen() {
 
             {!editingInfo ? (
               <>
-                {reminder.purpose ? (
+                {r.purpose ? (
                   <View style={{ gap: Spacing.xs }}>
                     <Text style={{ ...Typography.captionMedium, color: palette.textSecondary }}>Para que serve</Text>
-                    <Text style={{ ...Typography.body, color: palette.text }}>{reminder.purpose}</Text>
+                    <Text style={{ ...Typography.body, color: palette.text }}>{r.purpose}</Text>
                   </View>
                 ) : null}
                 {formattedPrice ? (
@@ -167,10 +191,10 @@ export default function ReminderDetailScreen() {
                     <Text style={{ ...Typography.body, color: palette.text }}>{formattedPrice}</Text>
                   </View>
                 ) : null}
-                {reminder.description ? (
+                {r.description ? (
                   <View style={{ gap: Spacing.xs }}>
                     <Text style={{ ...Typography.captionMedium, color: palette.textSecondary }}>Observações</Text>
-                    <Text style={{ ...Typography.body, color: palette.text }}>{reminder.description}</Text>
+                    <Text style={{ ...Typography.body, color: palette.text }}>{r.description}</Text>
                   </View>
                 ) : null}
               </>
@@ -197,10 +221,10 @@ export default function ReminderDetailScreen() {
                   multiline
                   numberOfLines={3}
                 />
-                <View style={{ flexDirection:'row', gap: Spacing.sm, justifyContent:'flex-end' }}>
+                <View style={{ flexDirection: 'row', gap: Spacing.sm, justifyContent: 'flex-end' }}>
                   <TouchableOpacity
-                    onPress={() => { setEditingInfo(false); setPurpose(reminder.purpose ?? ''); setPricePaid(reminder.pricePaid == null ? '' : typeof reminder.pricePaid === 'number' ? String(reminder.pricePaid) : String(reminder.pricePaid)); setDescription(reminder.description ?? ''); }}
-                    style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: BorderRadius.md, borderWidth:1, borderColor: palette.border }}
+                    onPress={() => { setEditingInfo(false); setPurpose(r.purpose ?? ''); setPricePaid(r.pricePaid == null ? '' : typeof r.pricePaid === 'number' ? String(r.pricePaid) : String(r.pricePaid)); setDescription(r.description ?? ''); }}
+                    style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: palette.border }}
                   >
                     <Text style={{ ...Typography.smallMedium, color: palette.text }}>Cancelar</Text>
                   </TouchableOpacity>
@@ -218,20 +242,20 @@ export default function ReminderDetailScreen() {
 
         <Text style={{ ...Typography.h4, color: palette.text, marginBottom: Spacing.md }}>Horários</Text>
 
-        {reminder.schedules?.length ? (
+        {r.schedules?.length ? (
           <FlatList
-            data={reminder.schedules}
+            data={r.schedules}
             keyExtractor={s => s.id}
-            style={{ flexGrow:0 }}
+            style={{ flexGrow: 0 }}
             contentContainerStyle={{ gap: Spacing.md, paddingBottom: Spacing.xl }}
             renderItem={({ item: s }) => (
-            <ScheduleCard
-              key={s.id}
-              s={s}
-              palette={palette}
-              onSave={(patch) => handleUpdateSchedule(s, patch)}
-              onDelete={() => handleDeleteSchedule(s)}
-            />
+              <ScheduleCard
+                key={s.id}
+                s={s}
+                palette={palette}
+                onSave={(patch) => handleUpdateSchedule(s, patch)}
+                onDelete={() => handleDeleteSchedule(s)}
+              />
             )}
           />
         ) : (
@@ -241,7 +265,7 @@ export default function ReminderDetailScreen() {
           </View>
         )}
 
-        {reminder.schedules?.length ? (
+        {r.schedules?.length ? (
           <PrimaryButton title="Adicionar Horário" onPress={handleAddSchedule} />
         ) : null}
       </View>
@@ -271,16 +295,16 @@ function ScheduleCard({ s, palette, onSave, onDelete }: { s: any; palette: any; 
   }
 
   return (
-    <View style={{ backgroundColor: palette.surface, borderRadius: BorderRadius.md, padding: Spacing.md, borderWidth:1, borderColor: palette.border }}>
-      <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom: Spacing.sm }}>
+    <View style={{ backgroundColor: palette.surface, borderRadius: BorderRadius.md, padding: Spacing.md, borderWidth: 1, borderColor: palette.border }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm }}>
         <Text style={{ ...Typography.bodyMedium, color: palette.text }}>{minutesToHHMM(s.ingestionTimeMinutes)} • {daysOfWeekFromBitmask(s.daysOfWeekBitmask)}</Text>
         <TouchableOpacity onPress={onDelete}>
           <Text style={{ ...Typography.small, color: palette.error }}>Remover</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={{ flexDirection:'row', alignItems:'center', gap: Spacing.md, marginBottom: Spacing.sm }}>
-        <Text style={{ ...Typography.captionMedium, color: palette.text, minWidth:60 }}>Horário</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.sm }}>
+        <Text style={{ ...Typography.captionMedium, color: palette.text, minWidth: 60 }}>Horário</Text>
         <TimePicker minutes={localMinutes} onChange={setLocalMinutes} />
         <TouchableOpacity
           onPress={handleSave}
@@ -302,7 +326,7 @@ function ScheduleCard({ s, palette, onSave, onDelete }: { s: any; palette: any; 
         <Text style={{ ...Typography.captionMedium, color: palette.text }}>Dias da Semana</Text>
         <DaysOfWeekSelector value={s.daysOfWeekBitmask} onChange={(mask) => onSave({ daysOfWeekBitmask: mask })} />
       </View>
-      <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <Text style={{ ...Typography.captionMedium, color: palette.text }}>Ativo</Text>
         <TouchableOpacity onPress={() => onSave({ isActive: !s.isActive })}>
           <StatusBadge status={s.isActive ? 'success' : 'neutral'} text={s.isActive ? 'Sim' : 'Não'} size="sm" />

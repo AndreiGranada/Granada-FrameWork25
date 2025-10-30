@@ -11,6 +11,7 @@ interface RemindersState {
     error: string | null;
 
     // Actions
+    loadReminderById: (id: string) => Promise<Reminder | null>;
     loadReminders: () => Promise<void>;
     createReminder: (data: ReminderCreate) => Promise<Reminder>;
     updateReminder: (id: string, data: ReminderUpdate) => Promise<Reminder>;
@@ -30,6 +31,29 @@ export const useRemindersStore = create<RemindersState>()(
         error: null,
 
         // Actions
+        loadReminderById: async (id: string) => {
+            try {
+                const r = await remindersAdapter.get(id);
+                set((state) => {
+                    const idx = state.reminders.findIndex((x: Reminder) => x.id === id);
+                    if (idx >= 0) state.reminders[idx] = r;
+                    else state.reminders.unshift(r);
+                });
+                return r;
+            } catch (error: any) {
+                const status = error?.response?.status;
+                if (status === 404) {
+                    return null;
+                }
+                if (status === 401) {
+                    try { await useAuthStore.getState().logout(); } catch {}
+                    set((state) => { state.error = 'Sessão expirada. Entre novamente.'; });
+                } else {
+                    set((state) => { state.error = error?.response?.data?.error?.message || 'Falha ao carregar lembrete'; });
+                }
+                throw error;
+            }
+        },
         loadReminders: async () => {
             set((state) => {
                 state.isLoading = true;
@@ -54,10 +78,20 @@ export const useRemindersStore = create<RemindersState>()(
                         state.isLoading = false;
                     });
                 } else {
-                    set((state) => {
-                        state.error = error?.response?.data?.error?.message || 'Falha ao carregar lembretes';
-                        state.isLoading = false;
-                    });
+                    const isNetwork = !status && (error?.message?.includes('Network') || error?.name === 'AxiosError');
+                    if (isNetwork) {
+                        // Marca aviso offline no authStore para exibir banner e dá mensagem mais clara
+                        try { (useAuthStore as any).setState?.({ offlineWarning: true }); } catch {}
+                        set((state) => {
+                            state.error = 'Servidor indisponível. Verifique se o backend está em execução.';
+                            state.isLoading = false;
+                        });
+                    } else {
+                        set((state) => {
+                            state.error = error?.response?.data?.error?.message || 'Falha ao carregar lembretes';
+                            state.isLoading = false;
+                        });
+                    }
                 }
             }
         },

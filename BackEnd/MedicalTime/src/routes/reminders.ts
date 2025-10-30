@@ -21,7 +21,8 @@ const createReminderSchema = z.object({
     description: z.string().optional(),
     pricePaid: z.string().optional(), // Decimal como string
     photoUrl: z.string().url().optional(),
-    schedules: z.array(scheduleSchema).min(1)
+    // Permite criar lembrete sem horários inicialmente (UI adiciona depois)
+    schedules: z.array(scheduleSchema).optional().default([])
 });
 
 const updateReminderSchema = z.object({

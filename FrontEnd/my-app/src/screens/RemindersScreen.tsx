@@ -39,12 +39,13 @@ export default function RemindersScreen() {
   const [creating, setCreating] = useState(false);
   const palette = Colors[mode];
 
-  // Carrega lembretes somente quando autenticado para evitar 401 em loop
+  // Carrega lembretes somente quando a verificação de sessão terminou e o usuário está autenticado
+  // Evita disparar requests enquanto o auth ainda está hidratando (prevenindo 401 intermitente)
   useEffect(() => {
-    if (isAuthenticated) {
+    if (!authLoading && isAuthenticated) {
       loadReminders();
     }
-  }, [isAuthenticated, loadReminders]);
+  }, [authLoading, isAuthenticated, loadReminders]);
 
   async function create() {
     if (!isAuthenticated) {
