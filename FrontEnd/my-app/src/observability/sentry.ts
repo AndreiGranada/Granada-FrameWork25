@@ -1,9 +1,10 @@
 // Seleciona implementação real ou stub conforme env.
-// Mantém API estável para o restante do app.
-import * as realImpl from './sentry.real';
-import * as stubImpl from './sentry.stub';
+// Evita importar a implementação real quando não estiver habilitada, para não acionar
+// import dinâmico (async-require) no Web que pode falhar em alguns ambientes Windows.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const useReal = process.env.EXPO_PUBLIC_USE_SENTRY === '1';
-const impl: any = useReal ? realImpl : stubImpl;
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const impl: any = useReal ? require('./sentry.real') : require('./sentry.stub');
 
 export const initSentry = impl.initSentry;
 export const setSentryUser = impl.setSentryUser;

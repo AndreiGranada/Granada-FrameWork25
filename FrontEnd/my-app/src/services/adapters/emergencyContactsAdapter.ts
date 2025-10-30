@@ -1,6 +1,7 @@
 import { wrap, mutationBreadcrumb } from './adapterError';
 import { logger } from '@/src/lib/logger';
 import { trackEvent } from '@/src/observability/analytics';
+import { DefaultService } from '@/sdk-backend';
 // Tipos de criação/atualização extraídos localmente até migração completa para tipos do SDK
 export interface EmergencyContactCreate { name: string; phone: string; customMessage?: string; isActive: boolean; }
 export interface EmergencyContactUpdate { name?: string; phone?: string; customMessage?: string | null; isActive?: boolean; }
@@ -16,23 +17,11 @@ export interface EmergencyContact {
     updatedAt?: string;
 }
 
-let DefaultServiceRef: any | null = null;
-let loadingPromise: Promise<void> | null = null;
-
-async function ensureSdk(): Promise<void> {
-    if (DefaultServiceRef) return;
-    if (loadingPromise) { await loadingPromise; return; }
-    loadingPromise = import('@/sdk-backend')
-        .then(mod => { DefaultServiceRef = (mod as any).DefaultService; })
-        .catch(() => { /* silencioso */ })
-        .finally(() => { loadingPromise = null; });
-    await loadingPromise;
-}
+let DefaultServiceRef: any | null = DefaultService;
 
 
 export const emergencyContactsAdapter = {
     async list(): Promise<EmergencyContact[]> {
-        await ensureSdk();
         if (!DefaultServiceRef?.listEmergencyContacts) throw new Error('SDK não carregado: gere o SDK (npm run sdk:update) ou verifique import');
         logger.debug('[emergencyContactsAdapter] list:start');
         const res = await DefaultServiceRef.listEmergencyContacts();
@@ -42,7 +31,6 @@ export const emergencyContactsAdapter = {
         return res;
     },
     async create(data: EmergencyContactCreate): Promise<EmergencyContact> {
-        await ensureSdk();
         return wrap(
             (async () => {
                 if (!DefaultServiceRef?.createEmergencyContact) throw new Error('SDK não carregado (createEmergencyContact ausente)');
@@ -57,7 +45,6 @@ export const emergencyContactsAdapter = {
         );
     },
     async update(id: string, data: EmergencyContactUpdate): Promise<EmergencyContact> {
-        await ensureSdk();
         return wrap(
             (async () => {
                 if (!DefaultServiceRef?.updateEmergencyContact) throw new Error('SDK não carregado (updateEmergencyContact ausente)');
@@ -72,7 +59,6 @@ export const emergencyContactsAdapter = {
         );
     },
     async remove(id: string): Promise<void> {
-        await ensureSdk();
         return wrap(
             (async () => {
                 if (!DefaultServiceRef?.deleteEmergencyContact) throw new Error('SDK não carregado (deleteEmergencyContact ausente)');

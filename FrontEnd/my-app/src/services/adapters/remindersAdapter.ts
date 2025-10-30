@@ -1,23 +1,12 @@
 // Adapter agora depende exclusivamente do SDK gerado em `sdk-backend`.
 // Fallback para APIs manuais foi removido como parte da finalização de migração.
 import type { Reminder, ReminderCreate, ReminderUpdate, ScheduleCreate, ScheduleUpdate } from '@/sdk-backend';
+import { DefaultService } from '@/sdk-backend';
 import { wrap, mutationBreadcrumb } from './adapterError';
 import { logger } from '@/src/lib/logger';
 import { trackEvent } from '@/src/observability/analytics';
 
-let DefaultServiceRef: any | null = null;
-let loadingPromise: Promise<void> | null = null;
-
-async function ensureSdk(): Promise<void> {
-    if (DefaultServiceRef) return;
-    if (loadingPromise) { await loadingPromise; return; }
-    // Usar sempre alias '@/sdk-backend' para garantir cache único do módulo (evita duplicar OpenAPI sem TOKEN)
-    loadingPromise = import('@/sdk-backend')
-        .then(mod => { DefaultServiceRef = (mod as any).DefaultService; })
-        .catch(() => { /* silencioso */ })
-        .finally(() => { loadingPromise = null; });
-    await loadingPromise;
-}
+let DefaultServiceRef: any | null = DefaultService;
 
 // Utilitário somente para testes: permite injetar mock direto
 export function __setRemindersSdkMock(mock: any) {
@@ -27,7 +16,6 @@ export function __setRemindersSdkMock(mock: any) {
 
 export const remindersAdapter = {
     async list(): Promise<Reminder[]> {
-        await ensureSdk();
         if (!DefaultServiceRef?.listReminders) throw new Error('SDK não carregado: gere o SDK (npm run sdk:update)');
         logger.debug('[remindersAdapter] list:start');
         const list = await DefaultServiceRef.listReminders();
@@ -36,7 +24,6 @@ export const remindersAdapter = {
         return list;
     },
     async create(data: ReminderCreate): Promise<Reminder> {
-        await ensureSdk();
         return wrap(
             (async () => {
                 if (!DefaultServiceRef?.createReminder) throw new Error('SDK não carregado');
@@ -59,7 +46,6 @@ export const remindersAdapter = {
         );
     },
     async update(id: string, data: ReminderUpdate): Promise<Reminder> {
-        await ensureSdk();
         if ((data as any)?.pricePaid && typeof (data as any).pricePaid === 'string') {
             (data as any).pricePaid = (data as any).pricePaid.replace(',', '.');
         }
@@ -77,7 +63,6 @@ export const remindersAdapter = {
         );
     },
     async remove(id: string): Promise<void> {
-        await ensureSdk();
         return wrap(
             (async () => {
                 if (!DefaultServiceRef?.deleteReminder) throw new Error('SDK não carregado');
@@ -91,7 +76,6 @@ export const remindersAdapter = {
         );
     },
     async addSchedule(reminderId: string, data: ScheduleCreate): Promise<Reminder> {
-        await ensureSdk();
         return wrap(
             (async () => {
                 if (!DefaultServiceRef?.addReminderSchedule) throw new Error('SDK não carregado');
@@ -106,7 +90,6 @@ export const remindersAdapter = {
         );
     },
     async updateSchedule(scheduleId: string, data: ScheduleUpdate): Promise<Reminder> {
-        await ensureSdk();
         return wrap(
             (async () => {
                 if (!DefaultServiceRef?.updateSchedule) throw new Error('SDK não carregado');
@@ -121,7 +104,6 @@ export const remindersAdapter = {
         );
     },
     async deleteSchedule(scheduleId: string): Promise<void> {
-        await ensureSdk();
         return wrap(
             (async () => {
                 if (!DefaultServiceRef?.deleteSchedule) throw new Error('SDK não carregado');

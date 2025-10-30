@@ -92,7 +92,11 @@ export default function RemindersScreen() {
     };
     const formattedPrice = formatPriceLabel(item.pricePaid);
     return (
-      <TouchableOpacity onPress={onPress} accessibilityRole="button" accessibilityLabel={`Abrir lembrete ${item.name}`}>
+      <TouchableOpacity
+        onPress={onPress}
+        accessibilityRole={Platform.OS === 'web' ? undefined : 'button'}
+        accessibilityLabel={`Abrir lembrete ${item.name}`}
+      >
         <Card elevated style={{ padding: Spacing.md, marginBottom: Spacing.md }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <View style={{ flex: 1, paddingRight: Spacing.md }}>

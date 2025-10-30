@@ -1,28 +1,16 @@
 // Adapter final: usa apenas SDK gerado.
 import type { Device, DeviceCreate, DeviceUpdate } from '@/sdk-backend';
+import { DefaultService } from '@/sdk-backend';
 import { wrap, mutationBreadcrumb } from './adapterError';
 
-let DefaultServiceRef: any | null = null;
-let loadingPromise: Promise<void> | null = null;
-
-async function ensureSdk(): Promise<void> {
-    if (DefaultServiceRef) return;
-    if (loadingPromise) { await loadingPromise; return; }
-    loadingPromise = import('@/sdk-backend')
-        .then(mod => { DefaultServiceRef = (mod as any).DefaultService; })
-        .catch(() => { /* silencioso */ })
-        .finally(() => { loadingPromise = null; });
-    await loadingPromise;
-}
+let DefaultServiceRef: any | null = DefaultService;
 
 export const devicesAdapter = {
     async list(): Promise<Device[]> {
-        await ensureSdk();
         if (!DefaultServiceRef?.listDevices) throw new Error('SDK não carregado');
         return await DefaultServiceRef.listDevices();
     },
     async register(data: DeviceCreate): Promise<Device> {
-        await ensureSdk();
         return wrap(
             (async () => {
                 if (!DefaultServiceRef?.registerDevice) throw new Error('SDK não carregado');
@@ -34,7 +22,6 @@ export const devicesAdapter = {
         );
     },
     async update(id: string, data: DeviceUpdate): Promise<Device> {
-        await ensureSdk();
         return wrap(
             (async () => {
                 if (!DefaultServiceRef?.updateDevice) throw new Error('SDK não carregado');
@@ -46,7 +33,6 @@ export const devicesAdapter = {
         );
     },
     async remove(id: string): Promise<void> {
-        await ensureSdk();
         return wrap(
             (async () => {
                 if (!DefaultServiceRef?.deleteDevice) throw new Error('SDK não carregado');

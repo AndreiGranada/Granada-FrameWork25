@@ -2,29 +2,15 @@ import { logger } from '@/src/lib/logger';
 import { setCorrelationIdProvider } from '@/src/observability/analytics';
 import axios from 'axios';
 import { API_BASE_URL } from '../config/env';
+import { OpenAPI } from '@/sdk-backend';
 let accessToken: string | null = null; // Declarado cedo para ser usado no lazy import
 let refreshToken: string | null = null;
 
-// Migração gradual para SDK: import dinâmico lazy (evita erro se pasta ainda não existir)
-// OBS: O diretório real gerado é 'sdk-backend' (antes estava '@/sdk' incorreto causando 401 por falta de token no OpenAPI)
-let OpenAPIRef: any = null;
-if (typeof navigator !== 'undefined') {
-    (async () => {
-        try {
-            // Import dinâmico opcional do SDK gerado; suprimimos erro de path inexistente em build inicial
-            // @ts-ignore
-            const sdk = await import('@/sdk-backend');
-            OpenAPIRef = (sdk as any).OpenAPI;
-            if (OpenAPIRef) {
-                OpenAPIRef.BASE = API_BASE_URL;
-                // Resolver que lê sempre o token em memória (evita inconsistência ao trocar sessão)
-                // e já retorna normalizado com prefixo Bearer
-                OpenAPIRef.TOKEN = () => (accessToken ? `Bearer ${accessToken}` : undefined);
-            }
-        } catch (err) {
-            logger.warn('[api] Falha ao carregar SDK (lazy). Prossegue sem OpenAPIRef.', err);
-        }
-    })();
+// Referência direta ao OpenAPI do SDK (import estático para evitar problemas do async-require no Web)
+let OpenAPIRef: any = OpenAPI;
+if (OpenAPIRef) {
+    OpenAPIRef.BASE = API_BASE_URL;
+    OpenAPIRef.TOKEN = () => (accessToken ? `Bearer ${accessToken}` : undefined);
 }
 
 export type User = {

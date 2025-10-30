@@ -92,8 +92,8 @@ export default function HomeScreen() {
       variant: 'secondary' as const,
     },
     {
-      title: 'Próximas Ingestões',
-      description: 'Medicamentos das próximas 24h',
+      title: 'Próximas Ingestões do Dia',
+      description: 'Medicamentos das próximas ingestões do dia',
       onPress: () => router.push('/intakes' as any),
       variant: 'secondary' as const,
     },

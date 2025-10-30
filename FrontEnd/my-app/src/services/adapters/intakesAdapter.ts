@@ -1,26 +1,15 @@
 // Adapter usa exclusivamente o SDK gerado; fallback manual removido.
 import type { IntakeEvent, IntakeEventExpanded, IntakeHistoryPage } from '@/sdk-backend';
+import { DefaultService } from '@/sdk-backend';
 import { logger } from '@/src/lib/logger';
 import { trackEvent } from '@/src/observability/analytics';
 import { mutationBreadcrumb, wrap } from './adapterError';
 
-let DefaultServiceRef: any | null = null;
-let loadingPromise: Promise<void> | null = null;
-
-async function ensureSdk(): Promise<void> {
-    if (DefaultServiceRef) return;
-    if (loadingPromise) { await loadingPromise; return; }
-    loadingPromise = import('@/sdk-backend')
-        .then(mod => { DefaultServiceRef = (mod as any).DefaultService; })
-        .catch(() => { /* silencioso */ })
-        .finally(() => { loadingPromise = null; });
-    await loadingPromise;
-}
+let DefaultServiceRef: any | null = DefaultService;
 
 
 export const intakesAdapter = {
     async list(params?: { from?: string; to?: string; hours?: string; status?: 'PENDING' | 'TAKEN' | 'MISSED'; }): Promise<IntakeEventExpanded[]> {
-        await ensureSdk();
         // Compatibilidade: alguns mocks/SDKs antigos expõem listIntakes
         const listFn = DefaultServiceRef?.listIntakeEvents || DefaultServiceRef?.listIntakes;
         if (!listFn) throw new Error('SDK não carregado');
@@ -33,7 +22,6 @@ export const intakesAdapter = {
         return r;
     },
     async history(params?: { days?: string; limit?: number; cursor?: string }): Promise<IntakeEventExpanded[] | IntakeHistoryPage> {
-        await ensureSdk();
         if (!DefaultServiceRef?.listIntakeHistory) throw new Error('SDK não carregado');
         logger.debug('[intakesAdapter] history:start', { params });
         const h = await DefaultServiceRef.listIntakeHistory({ query: params });
@@ -42,7 +30,6 @@ export const intakesAdapter = {
         return h;
     },
     async markTaken(id: string): Promise<IntakeEvent> {
-        await ensureSdk();
         return wrap(
             (async () => {
                 if (!DefaultServiceRef?.markIntakeTaken) throw new Error('SDK não carregado');
