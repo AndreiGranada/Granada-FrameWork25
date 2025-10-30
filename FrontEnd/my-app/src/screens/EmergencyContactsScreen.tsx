@@ -10,7 +10,7 @@ import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Switch, Text, TouchableOpacity, View } from 'react-native';
 
 export default function EmergencyContactsScreen() {
-  useRequireAuth();
+  const { isAuthenticated } = useRequireAuth();
   const qc = useQueryClient();
   const router = useRouter();
   const { success, error: notifyError, warning } = useNotifications();
@@ -21,6 +21,7 @@ export default function EmergencyContactsScreen() {
   const { data, isLoading, isRefetching, refetch } = useQuery({
     queryKey: ['emergency-contacts'],
     queryFn: () => emergencyContactsAdapter.list(),
+    enabled: isAuthenticated,
   });
 
   const activeCount = useMemo(() => (data || []).filter(c => c.isActive).length, [data]);
@@ -32,7 +33,7 @@ export default function EmergencyContactsScreen() {
       if (desired && activeCount >= 5) {
         throw new Error('Você já possui 5 contatos ativos. Desative um para ativar outro.');
       }
-  return emergencyContactsAdapter.update(contact.id, { isActive: desired });
+      return emergencyContactsAdapter.update(contact.id, { isActive: desired });
     },
     onMutate: async (contact) => {
       await qc.cancelQueries({ queryKey: ['emergency-contacts'] });
@@ -54,7 +55,7 @@ export default function EmergencyContactsScreen() {
   });
 
   const mDelete = useMutation({
-  mutationFn: async (id: string) => emergencyContactsAdapter.remove(id),
+    mutationFn: async (id: string) => emergencyContactsAdapter.remove(id),
     onSuccess: () => {
       success('Contato removido');
       qc.invalidateQueries({ queryKey: ['emergency-contacts'] });

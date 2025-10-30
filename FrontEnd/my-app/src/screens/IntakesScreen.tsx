@@ -102,7 +102,7 @@ function IntakeRow({
 }
 
 export default function IntakesScreen() {
-  useRequireAuth();
+  const { isAuthenticated } = useRequireAuth();
   const [now, setNow] = useState<Date>(() => new Date());
   const { success, error: notifyError } = useNotifications();
   const { mode } = useThemeStore();
@@ -128,6 +128,7 @@ export default function IntakesScreen() {
       }
     },
     staleTime: 30_000,
+    enabled: isAuthenticated,
   });
 
   const todaysIntakes = useMemo(() => {
@@ -151,10 +152,10 @@ export default function IntakesScreen() {
           current?.map((ev) =>
             ev.id === updated.id
               ? {
-                  ...ev,
-                  status: (updated.status ?? IntakeEvent.status.TAKEN) as IntakeEvent.status,
-                  takenAt: updated.takenAt ?? new Date().toISOString(),
-                }
+                ...ev,
+                status: (updated.status ?? IntakeEvent.status.TAKEN) as IntakeEvent.status,
+                takenAt: updated.takenAt ?? new Date().toISOString(),
+              }
               : ev,
           ) ?? current,
       );
@@ -197,7 +198,7 @@ export default function IntakesScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.background }}>
-  <ScreenHeader title="Ingestões" subtitle={`Hoje • ${todayRange.label}`} />
+      <ScreenHeader title="Ingestões" subtitle={`Hoje • ${todayRange.label}`} />
       <View style={{ flex: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, paddingBottom: Spacing.lg }}>
         <FlatList
           data={todaysIntakes}

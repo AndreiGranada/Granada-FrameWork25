@@ -2,23 +2,23 @@ import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from
 import { useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    Easing,
-    FlatList,
-    RefreshControl,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  Easing,
+  FlatList,
+  RefreshControl,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 import ScreenHeader from '@/components/ui/ScreenHeader';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { IntakeEvent, type IntakeEventExpanded, type IntakeHistoryPage } from '@/sdk-backend';
 import {
-    getDerivedIntakeStatus,
-    getGraceDurationMinutes,
-    type DerivedIntakeStatus,
+  getDerivedIntakeStatus,
+  getGraceDurationMinutes,
+  type DerivedIntakeStatus,
 } from '@/src/lib/intakeStatus';
 import { useRequireAuth } from '@/src/lib/useRequireAuth';
 import { intakesAdapter } from '@/src/services/adapters/intakesAdapter';
@@ -47,7 +47,7 @@ function getStatusAppearance(
   }
 }
 
-function useIntakeHistory(limit = 30, days?: number) {
+function useIntakeHistory(limit = 30, days?: number, enabled = true) {
   return useInfiniteQuery({
     queryKey: ['intakeHistory', limit, days],
     queryFn: async ({ pageParam }: { pageParam?: string }) => {
@@ -73,6 +73,7 @@ function useIntakeHistory(limit = 30, days?: number) {
     getNextPageParam: (last: IntakeHistoryPage) =>
       last.pageInfo?.hasMore ? last.pageInfo.nextCursor ?? undefined : undefined,
     initialPageParam: undefined,
+    enabled,
   });
 }
 
@@ -112,7 +113,7 @@ function formatTime(iso: string) {
 }
 
 export default function IntakesHistoryScreen() {
-  useRequireAuth();
+  const { isAuthenticated } = useRequireAuth();
 
   const { success, error: notifyError } = useNotifications();
   const { mode } = useThemeStore();
@@ -138,7 +139,7 @@ export default function IntakesHistoryScreen() {
     refetch,
     isRefetching,
     error,
-  } = useIntakeHistory(30, pagedMode ? undefined : selectedDays);
+  } = useIntakeHistory(30, pagedMode ? undefined : selectedDays, isAuthenticated);
 
   const historyQueryKey = useMemo(
     () => ['intakeHistory', 30, pagedMode ? undefined : selectedDays] as const,
@@ -171,10 +172,10 @@ export default function IntakesHistoryScreen() {
             data: page.data.map((item) =>
               item.id === updated.id
                 ? {
-                    ...item,
-                    status: updated.status as IntakeEvent.status,
-                    takenAt: updated.takenAt ?? new Date().toISOString(),
-                  }
+                  ...item,
+                  status: updated.status as IntakeEvent.status,
+                  takenAt: updated.takenAt ?? new Date().toISOString(),
+                }
                 : item,
             ),
           })),
@@ -184,10 +185,10 @@ export default function IntakesHistoryScreen() {
         current?.map((item) =>
           item.id === updated.id
             ? {
-                ...item,
-                status: updated.status as IntakeEvent.status,
-                takenAt: updated.takenAt ?? new Date().toISOString(),
-              }
+              ...item,
+              status: updated.status as IntakeEvent.status,
+              takenAt: updated.takenAt ?? new Date().toISOString(),
+            }
             : item,
         ) ?? current,
       );

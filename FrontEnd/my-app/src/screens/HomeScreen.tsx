@@ -15,7 +15,7 @@ import { Colors, Spacing, Typography } from '@/constants/theme';
 
 export default function HomeScreen() {
   const { user, logout } = useAuthStore();
-  useRequireAuth();
+  const { isAuthenticated } = useRequireAuth();
   const router = useRouter();
   const notifications = useNotifications();
   const { mode: themeMode } = useThemeStore();
@@ -23,7 +23,11 @@ export default function HomeScreen() {
   const [sosing, setSosing] = useState(false);
   const [retryAfter, setRetryAfter] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const { data: contacts } = useQuery({ queryKey: ['emergency-contacts'], queryFn: () => emergencyContactsAdapter.list() });
+  const { data: contacts } = useQuery({
+    queryKey: ['emergency-contacts'],
+    queryFn: () => emergencyContactsAdapter.list(),
+    enabled: isAuthenticated,
+  });
   const hasActiveContacts = useMemo(() => (contacts || []).some(c => c.isActive), [contacts]);
 
   useEffect(() => {
@@ -112,13 +116,13 @@ export default function HomeScreen() {
   ];
 
   return (
-    <View style={{ 
-      flex: 1, 
-      backgroundColor: palette.background 
+    <View style={{
+      flex: 1,
+      backgroundColor: palette.background
     }}>
-      <ScrollView 
+      <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ 
+        contentContainerStyle={{
           padding: Spacing.lg,
           gap: Spacing.lg,
         }}
@@ -139,7 +143,7 @@ export default function HomeScreen() {
           }}>
             Ações Rápidas
           </Text>
-          
+
           <View style={{ gap: Spacing.md }}>
             <PrimaryButton
               title={retryAfter ? `SOS bloqueado (${retryAfter}s)` : sosing ? 'Enviando SOS…' : 'Enviar SOS 🚨'}
@@ -148,7 +152,7 @@ export default function HomeScreen() {
               variant="danger"
               size="lg"
             />
-            
+
             {(!hasActiveContacts && !sosing) && (
               <Text style={{
                 ...Typography.caption,
@@ -171,7 +175,7 @@ export default function HomeScreen() {
           }}>
             Menu Principal
           </Text>
-          
+
           <View style={{ gap: Spacing.md }}>
             {menuItems.map((item, index) => (
               <View key={index}>
